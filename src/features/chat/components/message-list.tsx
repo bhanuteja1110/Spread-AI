@@ -1,0 +1,143 @@
+'use client';
+
+import React, { useEffect, useRef, useCallback } from 'react';
+import { MessageBubble } from './message-bubble';
+import { type Message } from 'ai';
+import { Zap, Brain, Palette, Loader2 } from 'lucide-react';
+
+interface MessageListProps {
+  messages: Message[];
+  isLoading: boolean;
+  userAvatarUrl?: string;
+  userName?: string;
+  /** Called when user scrolls to top — for pagination / infinite scroll */
+  onLoadMore?: () => void;
+}
+
+const SUGGESTED_PROMPTS = [
+  {
+    icon: Zap,
+    iconColor: 'text-yellow-400',
+    bg: 'bg-yellow-500/10',
+    title: 'Spread Fast',
+    description: 'Ultra-low latency. Great for quick debugging, simple questions, and fast lookups.',
+    prompt: 'Help me debug this code quickly.',
+  },
+  {
+    icon: Brain,
+    iconColor: 'text-blue-400',
+    bg: 'bg-blue-500/10',
+    title: 'Spread Smart',
+    description: 'Deep reasoning. Ideal for complex architecture, system design, and analysis.',
+    prompt: 'Help me design a scalable microservices architecture.',
+  },
+  {
+    icon: Palette,
+    iconColor: 'text-purple-400',
+    bg: 'bg-purple-500/10',
+    title: 'Spread Creative',
+    description: 'Multimodal vision and creativity. Upload images, documents, and generate ideas.',
+    prompt: 'Analyze this image and describe what you see.',
+  },
+] as const;
+
+function EmptyState() {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center p-6 sm:p-8 overflow-y-auto">
+      <div className="max-w-3xl w-full space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
+        <div className="text-center space-y-3">
+          <div className="mx-auto h-14 w-14 rounded-2xl bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center shadow-xl mb-6">
+            <span className="text-white font-bold text-lg tracking-tight">SA</span>
+          </div>
+          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-white">
+            How can Spread AI help?
+          </h2>
+          <p className="text-gray-500 text-base max-w-md mx-auto">
+            Choose an intelligence mode below or type your question to get started.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {SUGGESTED_PROMPTS.map(({ icon: Icon, iconColor, bg, title, description }) => (
+            <div
+              key={title}
+              className="p-5 rounded-xl bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.08] hover:border-white/20 transition-all cursor-default group"
+            >
+              <div className={`${bg} w-10 h-10 rounded-xl flex items-center justify-center mb-4 group-hover:scale-105 transition-transform`}>
+                <Icon className={`h-5 w-5 ${iconColor}`} aria-hidden />
+              </div>
+              <h3 className="font-semibold text-white mb-1.5 text-sm">{title}</h3>
+              <p className="text-xs text-gray-500 leading-relaxed">{description}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function MessageList({
+  messages,
+  isLoading,
+  userAvatarUrl,
+  userName,
+  onLoadMore,
+}: MessageListProps) {
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom on new messages
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages.length]);
+
+  // Infinite scroll: detect scroll to top to load older messages
+  const handleScroll = useCallback(() => {
+    if (!containerRef.current || !onLoadMore) return;
+    if (containerRef.current.scrollTop < 80) {
+      onLoadMore();
+    }
+  }, [onLoadMore]);
+
+  if (messages.length === 0) {
+    return <EmptyState />;
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      onScroll={onLoadMore ? handleScroll : undefined}
+      className="flex-1 overflow-y-auto overscroll-contain"
+      role="log"
+      aria-label="Conversation messages"
+      aria-live="polite"
+    >
+      <div className="max-w-4xl mx-auto px-2 sm:px-4 pt-4 pb-8 space-y-1">
+        {messages.map((message) => (
+          <MessageBubble
+            key={message.id}
+            message={message}
+            userAvatarUrl={userAvatarUrl}
+            userName={userName}
+          />
+        ))}
+
+        {/* AI thinking indicator */}
+        {isLoading && (
+          <div className="flex items-center gap-3 py-4 px-3 sm:px-4" aria-label="Spread AI is thinking">
+            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center flex-shrink-0">
+              <Loader2 className="h-4 w-4 text-white animate-spin" />
+            </div>
+            <div className="flex gap-1 items-center">
+              <span className="h-2 w-2 rounded-full bg-purple-400 animate-bounce [animation-delay:-0.3s]" />
+              <span className="h-2 w-2 rounded-full bg-purple-400 animate-bounce [animation-delay:-0.15s]" />
+              <span className="h-2 w-2 rounded-full bg-purple-400 animate-bounce" />
+            </div>
+          </div>
+        )}
+
+        <div ref={bottomRef} aria-hidden />
+      </div>
+    </div>
+  );
+}
