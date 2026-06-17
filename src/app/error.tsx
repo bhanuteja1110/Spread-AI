@@ -1,9 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { AlertTriangle, RefreshCcw } from 'lucide-react';
-
 export default function Error({
   error,
   reset,
@@ -11,30 +7,24 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  useEffect(() => {
-    // Log the error natively avoiding unhandled promises
-    console.error('Spread AI Global Error caught:', error);
-  }, [error]);
+  console.error(error);
 
   return (
-    <div className="bg-[#0b101e] text-white flex h-screen w-full items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white/5 border border-white/10 rounded-2xl p-8 text-center space-y-6 shadow-2xl">
-        <div className="mx-auto bg-red-500/20 h-16 w-16 flex items-center justify-center rounded-full animate-bounce">
-          <AlertTriangle className="h-8 w-8 text-red-400" />
-        </div>
-        <div className="space-y-2">
-          <h2 className="text-2xl font-bold tracking-tight">Something went wrong</h2>
-          <p className="text-gray-400 text-sm">
-            We encountered an unexpected rendering error. Please reload the session safely.
-          </p>
-        </div>
-        <Button 
-          onClick={() => reset()} 
-          className="w-full bg-purple-600 hover:bg-purple-700 font-semibold gap-2 transition-all h-12"
-        >
-          <RefreshCcw className="h-4 w-4" /> Reload Session
-        </Button>
+    <div className="flex min-h-[400px] flex-col items-center justify-center p-8 text-center text-red-500 bg-red-500/10 rounded-xl border border-red-500/20 m-4">
+      <h2 className="mb-4 text-xl font-semibold">Something went wrong!</h2>
+      
+      <div className="text-left w-full max-w-2xl bg-black/50 p-4 rounded-lg overflow-auto mb-6 text-sm text-red-400 font-mono">
+        <p className="font-bold text-red-300 mb-2">{error.message}</p>
+        <pre className="whitespace-pre-wrap">{error.stack}</pre>
+        {error.digest && <p className="mt-4 text-xs text-red-500/50">Digest: {error.digest}</p>}
       </div>
+
+      <button
+        onClick={() => reset()}
+        className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors"
+      >
+        Try again
+      </button>
     </div>
   );
 }
