@@ -28,7 +28,8 @@ export default function LoginPage() {
             <span className="w-full border-t border-white/10" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-[#0b101e] px-2 text-gray-400 mix-blend-screen">Or continue with</span>
+            {/* Removed the hardcoded background and mix-blend-screen. Using a semi-transparent glass background to cover the line behind it cleanly. */}
+            <span className="px-2 text-gray-400" style={{ background: '#12141c' }}>Or continue with</span>
           </div>
         </div>
 
@@ -40,7 +41,7 @@ export default function LoginPage() {
           </Link>
           <p>
             Don&apos;t have an account?{' '}
-            <Link href="/signup" className="text-primary hover:text-primary/80 transition-colors font-medium">
+            <Link href="/signup" className="text-purple-400 hover:text-purple-300 transition-colors font-medium">
               Sign up
             </Link>
           </p>

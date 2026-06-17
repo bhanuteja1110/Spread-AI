@@ -27,7 +27,7 @@ export default function SignUpPage() {
             <span className="w-full border-t border-white/10" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-[#0b101e] px-2 text-gray-400">Or continue with</span>
+            <span className="px-2 text-gray-400" style={{ background: '#12141c' }}>Or continue with</span>
           </div>
         </div>
 
@@ -35,7 +35,7 @@ export default function SignUpPage() {
 
         <p className="text-center text-sm text-gray-400">
           Already have an account?{' '}
-          <Link href="/login" className="text-primary hover:text-primary/80 transition-colors font-medium">
+          <Link href="/login" className="text-purple-400 hover:text-purple-300 transition-colors font-medium">
             Sign in
           </Link>
         </p>

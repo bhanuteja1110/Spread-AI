@@ -9,7 +9,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { resetPassword } from '../actions';
 import { toast } from 'sonner';
 import { useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Mail } from 'lucide-react';
 
 const forgotPasswordSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -35,7 +35,6 @@ export function ForgotPasswordForm() {
         toast.error(res.error);
       } else {
         setIsSuccess(true);
-        toast.success(res?.success || 'Email sent');
       }
     } catch (error) {
       toast.error('Failed to send reset email.');
@@ -46,9 +45,13 @@ export function ForgotPasswordForm() {
 
   if (isSuccess) {
     return (
-      <div className="text-center space-y-4">
-        <p className="text-gray-200">
-          We&apos;ve sent a password reset link to your email address.
+      <div className="flex flex-col items-center gap-4 py-4 text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-purple-500/20">
+          <Mail className="h-7 w-7 text-purple-400" />
+        </div>
+        <h2 className="text-lg font-semibold text-white">Check your email</h2>
+        <p className="text-sm text-gray-300 leading-relaxed">
+          We&apos;ve sent a password reset link to <span className="text-purple-400 font-medium">{form.getValues('email')}</span>.
         </p>
       </div>
     );
@@ -56,23 +59,39 @@ export function ForgotPasswordForm() {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
         <FormField
           control={form.control}
           name="email"
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-gray-200">Email Address</FormLabel>
+              <FormLabel className="text-sm font-medium text-gray-200">Email Address</FormLabel>
               <FormControl>
-                <Input placeholder="name@example.com" className="glass-input text-white" {...field} />
+                <Input 
+                  placeholder="name@example.com" 
+                  type="email"
+                  autoComplete="email"
+                  className="glass-input h-11 rounded-lg text-white" 
+                  {...field} 
+                />
               </FormControl>
-              <FormMessage />
+              <FormMessage className="text-red-400" />
             </FormItem>
           )}
         />
-        <Button type="submit" className="w-full mt-6" disabled={isPending}>
-          {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          Send Reset Link
+        <Button 
+          type="submit" 
+          className="w-full h-11 mt-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg shadow-lg shadow-purple-500/20 transition-all" 
+          disabled={isPending}
+        >
+          {isPending ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Sending Link…
+            </>
+          ) : (
+            'Send Reset Link'
+          )}
         </Button>
       </form>
     </Form>
