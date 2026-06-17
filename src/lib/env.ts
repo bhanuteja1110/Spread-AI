@@ -2,7 +2,10 @@ import { z } from 'zod';
 
 /**
  * Typed, validated environment configuration.
- * Throws at startup if any required variable is missing — fail fast, fail loudly.
+ *
+ * IMPORTANT: env is a lazy getter — it is only validated when first accessed
+ * at runtime, NOT at build time. This prevents Vercel's static page data
+ * collection from crashing when env vars are not yet injected.
  */
 const envSchema = z.object({
   // Node Environment
@@ -24,7 +27,11 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>;
 
+let _env: Env | undefined;
+
 const parseEnv = (): Env => {
+  if (_env) return _env;
+
   const parsed = envSchema.safeParse({
     NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
@@ -43,7 +50,16 @@ const parseEnv = (): Env => {
     throw new Error(`❌ Invalid environment variables:\n${missing}`);
   }
 
-  return parsed.data;
+  _env = parsed.data;
+  return _env;
 };
 
-export const env = parseEnv();
+/**
+ * Lazy env accessor — validated on first access at request time, not build time.
+ * This allows Vercel to collect static page data without env vars being present.
+ */
+export const env: Env = new Proxy({} as Env, {
+  get(_target, prop: string) {
+    return parseEnv()[prop as keyof Env];
+  },
+});
