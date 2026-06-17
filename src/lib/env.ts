@@ -4,8 +4,7 @@ import { z } from 'zod';
  * Typed, validated environment configuration.
  *
  * IMPORTANT: env is a lazy getter — it is only validated when first accessed
- * at runtime, NOT at build time. This prevents Vercel's static page data
- * collection from crashing when env vars are not yet injected.
+ * at runtime, NOT at build time.
  */
 const envSchema = z.object({
   // Node Environment
@@ -32,13 +31,18 @@ let _env: Env | undefined;
 const parseEnv = (): Env => {
   if (_env) return _env;
 
+  const isServer = typeof window === 'undefined';
+
   const parsed = envSchema.safeParse({
     NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
-    NVIDIA_API_KEY: process.env.NVIDIA_API_KEY,
+    // Next.js completely removes non-NEXT_PUBLIC variables from the browser bundle.
+    // To prevent Zod from crashing the client app because NVIDIA_API_KEY is missing,
+    // we provide dummy values when running in the browser. They will never be used anyway.
+    SUPABASE_SERVICE_ROLE_KEY: isServer ? process.env.SUPABASE_SERVICE_ROLE_KEY : 'client-side-dummy',
+    NVIDIA_API_KEY: isServer ? process.env.NVIDIA_API_KEY : 'client-side-dummy',
   });
 
   if (!parsed.success) {
