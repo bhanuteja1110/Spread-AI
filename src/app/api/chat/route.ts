@@ -1,6 +1,6 @@
-import { streamText, type Message } from 'ai';
+import { streamText, type Message, type CoreMessage } from 'ai';
 import { nvidiaClient, DEFAULT_NVIDIA_MODEL, DEFAULT_VISION_MODEL } from '@/lib/nvidia/client';
-import { manageContextWindow } from '@/lib/nvidia/context-manager';
+import { manageContextWindow, type MessageContentPart } from '@/lib/nvidia/context-manager';
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
@@ -119,36 +119,52 @@ export async function POST(req: Request): Promise<Response> {
         });
     }
 
-    // --- Multimodal Vision Detection & Message Transformation ---
+    // --- Multimodal Vision Detection & Server-Side Image Buffer Fetching ---
+    // Why: NVIDIA NIM vision models often block outbound networking (meaning they can't fetch external URLs).
+    // To ensure the model sees the image, we download the signed URL into a Uint8Array. 
+    // The AI SDK will automatically encode this as base64 in the request payload.
     let requiresVision = false;
-    const processedMessages = messages.map((msg) => {
-      if (
-        msg.role === 'user' &&
-        typeof msg.content === 'string' &&
-        HAS_IMAGE_REGEX.test(msg.content)
-      ) {
-        requiresVision = true;
-        const parts: Array<{ type: 'text' | 'image'; text?: string; image?: string }> = [];
-        const cleanText = msg.content.replace(IMAGE_URL_REGEX, '').trim();
+    const processedMessages = await Promise.all(
+      messages.map(async (msg): Promise<CoreMessage> => {
+        if (
+          msg.role === 'user' &&
+          typeof msg.content === 'string' &&
+          HAS_IMAGE_REGEX.test(msg.content)
+        ) {
+          requiresVision = true;
+          const parts: MessageContentPart[] = [];
+          const cleanText = msg.content.replace(IMAGE_URL_REGEX, '').trim();
 
-        if (cleanText) {
-          parts.push({ type: 'text', text: cleanText });
-        } else {
-          parts.push({ type: 'text', text: 'Please analyze this image carefully.' });
+          if (cleanText) {
+            parts.push({ type: 'text', text: cleanText });
+          } else {
+            parts.push({ type: 'text', text: 'Please analyze this image carefully.' });
+          }
+
+          // Extract all image URLs and fetch them into memory
+          const imageMatches = Array.from(msg.content.matchAll(IMAGE_URL_REGEX));
+          for (const match of imageMatches) {
+            const url = match[1];
+            try {
+              const res = await fetch(url);
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              const buffer = await res.arrayBuffer();
+              parts.push({ type: 'image', image: new Uint8Array(buffer) });
+            } catch (err) {
+              console.error('Failed to download image buffer, falling back to URL:', err);
+              parts.push({ type: 'image', image: url }); // graceful fallback
+            }
+          }
+
+          return { role: 'user', content: parts } as CoreMessage;
         }
 
-        // Extract all image URLs from this message
-        const imageMatches = Array.from(msg.content.matchAll(IMAGE_URL_REGEX));
-        for (const match of imageMatches) {
-          parts.push({ type: 'image', image: match[1] });
-        }
+        // Standardize format to strictly CoreMessage for the AI SDK
+        return { role: msg.role, content: msg.content } as CoreMessage;
+      })
+    );
 
-        return { ...msg, content: parts };
-      }
-      return msg;
-    });
-
-    const optimizedMessages = await manageContextWindow(processedMessages as Message[]);
+    const optimizedMessages = await manageContextWindow(processedMessages) as CoreMessage[];
     const selectedModel = requiresVision ? DEFAULT_VISION_MODEL : DEFAULT_NVIDIA_MODEL;
 
     // --- Stream AI Response ---

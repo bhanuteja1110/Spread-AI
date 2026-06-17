@@ -4,9 +4,10 @@ const MAX_TOKENS = 8000;
 const CHARS_PER_TOKEN = 4;
 const MAX_CHARS = MAX_TOKENS * CHARS_PER_TOKEN;
 
-type MessageContentPart =
+// Expanded to allow Uint8Array (binary buffers) for base64 injection into AI SDK
+export type MessageContentPart =
   | { type: 'text'; text: string }
-  | { type: 'image'; image: string };
+  | { type: 'image'; image: string | Uint8Array };
 
 /**
  * Estimates token count for a message content value.
@@ -54,24 +55,23 @@ function processContent(content: string | MessageContentPart[]): string | Messag
  * Trims the conversation history to fit within the MAX_TOKENS context window.
  * Iterates from newest to oldest, inserting a system note when history is dropped.
  */
-export async function manageContextWindow(messages: Message[]): Promise<Message[]> {
+export async function manageContextWindow(messages: any[]): Promise<any[]> {
   let totalTokens = 0;
-  const recentMessages: Message[] = [];
+  const recentMessages: any[] = [];
 
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = { ...messages[i] };
     // Apply document chunking before token estimation
-    (msg as any).content = processContent(msg.content as string | MessageContentPart[]);
+    msg.content = processContent(msg.content as string | MessageContentPart[]);
 
     const msgTokens = estimateTokens(msg.content as string | MessageContentPart[]);
 
     if (totalTokens + msgTokens > MAX_TOKENS) {
       // Inject a compression notice rather than silently dropping context
       recentMessages.unshift({
-        id: 'ctx-compressed',
         role: 'system',
         content: '[Earlier conversation context was compressed to stay within the model token limit.]',
-      } as Message);
+      });
       break;
     }
 
