@@ -19,8 +19,12 @@ const SYSTEM_PROMPT =
   'Be concise, accurate, and helpful. Format code in fenced code blocks with the correct language tag.';
 
 // Regex compiled once at module level — not on every request
-const IMAGE_URL_REGEX = /\[Attached Image: .*? - (https?:\/\/[^\]]+)\]/g;
+// Matches the hidden image_url block (model-only context) in user messages.
+const IMAGE_URL_REGEX = /<image_url>([\s\S]*?)<\/image_url>/g;
+// Marker indicating the user attached an image (without revealing the URL).
 const HAS_IMAGE_REGEX = /\[Attached Image:/;
+// Old format kept for backward compatibility with previously-stored messages.
+const LEGACY_IMAGE_REGEX = /\[Attached Image: .*? - (https?:\/\/[^\]]+)\]/g;
 
 interface ChatRequestBody {
   messages: Message[];
@@ -185,8 +189,12 @@ export async function POST(req: Request): Promise<Response> {
 
     // --- Multimodal Vision Detection & Server-Side Image Buffer Fetching ---
     // Why: NVIDIA NIM vision models often block outbound networking (meaning they can't fetch external URLs).
-    // To ensure the model sees the image, we download the signed URL into a Uint8Array. 
+    // To ensure the model sees the image, we download the signed URL into a Uint8Array.
     // The AI SDK will automatically encode this as base64 in the request payload.
+    //
+    // Image URL sources (in priority order):
+    //   1. <image_url>...</image_url>   ← current chat-input format
+    //   2. [Attached Image: name - URL]   ← legacy format for old stored messages
     let requiresVision = false;
     const processedMessages = await Promise.all(
       messages.map(async (msg): Promise<CoreMessage> => {
@@ -197,7 +205,12 @@ export async function POST(req: Request): Promise<Response> {
         ) {
           requiresVision = true;
           const parts: MessageContentPart[] = [];
-          const cleanText = msg.content.replace(IMAGE_URL_REGEX, '').trim();
+          // Strip BOTH the new <image_url> block and the legacy [Attached Image: ... - URL]
+          // for the text portion — the model only needs the user's words + the image binary.
+          const cleanText = msg.content
+            .replace(IMAGE_URL_REGEX, '')
+            .replace(LEGACY_IMAGE_REGEX, '')
+            .trim();
 
           if (cleanText) {
             parts.push({ type: 'text', text: cleanText });
@@ -205,10 +218,12 @@ export async function POST(req: Request): Promise<Response> {
             parts.push({ type: 'text', text: 'Please analyze this image carefully.' });
           }
 
-          // Extract all image URLs and fetch them into memory
-          const imageMatches = Array.from(msg.content.matchAll(IMAGE_URL_REGEX));
-          for (const match of imageMatches) {
-            const url = match[1];
+          // Collect image URLs from either format
+          const urls: string[] = [];
+          for (const m of Array.from(msg.content.matchAll(IMAGE_URL_REGEX))) urls.push(m[1]);
+          for (const m of Array.from(msg.content.matchAll(LEGACY_IMAGE_REGEX))) urls.push(m[1]);
+
+          for (const url of urls) {
             try {
               const res = await fetch(url);
               if (!res.ok) throw new Error(`HTTP ${res.status}`);

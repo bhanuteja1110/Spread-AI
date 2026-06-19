@@ -88,12 +88,23 @@ export function ChatInput({ isLoading, onSend }: ChatInputProps) {
     let finalPrompt = trimmed;
     for (const att of attachments) {
       if (att.extractedText) {
+        // Wrap extracted text in a structured block so the AI knows it's a doc,
+        // not user-typed text. The user's bubble parser will display this
+        // as a clean pill; the actual extracted text goes only to the model.
         finalPrompt += `\n\n<document title="${att.name}">\n${att.extractedText}\n</document>`;
       } else if (att.type.startsWith('image/')) {
-        finalPrompt += `\n\n[Attached Image: ${att.name} - ${att.url}]`;
+        // Image: reference the stored signed URL privately in the prompt
+        // (model needs it for vision), but DO NOT include it in the rendered
+        // user message — the bubble parser displays just the filename.
+        finalPrompt += `\n\n[Attached Image: ${att.name}]\n<image_url>${att.url}</image_url>`;
       }
     }
 
+    // The persisted message body is the parsed "user-visible" form (URLs
+    // stripped). The full finalPrompt (with URLs) is sent privately to the
+    // server via an out-of-band mechanism in chat-layout.tsx — but since
+    // ai/react's append() takes a single content field, we keep URLs in the
+    // stored content behind a tag that the bubble renderer strips.
     onSend(finalPrompt);
     setText('');
     setInterimText('');

@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { type Message } from 'ai';
 import { Copy, Check, RefreshCw, AlertTriangle, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
+import { UserMessageBody } from './parts/attachment-renderer';
 
 const MarkdownRenderer = memo(
   React.lazy(() =>
@@ -60,9 +61,12 @@ function MessageBubbleImpl({ message, userAvatarUrl, userName, onRetry }: Messag
   if (isUser) {
     return (
       <div
+        id={`msg-${message.id}`}
+        data-message-id={message.id}
+        data-message-role="user"
         role="article"
         aria-label="Your message"
-        className="group flex justify-end w-full px-3 sm:px-4 py-1.5"
+        className="group flex justify-end w-full px-3 sm:px-4 py-1.5 scroll-mt-24"
       >
         <div className="flex items-end gap-2 max-w-[85%] sm:max-w-[75%]">
           <button
@@ -75,11 +79,11 @@ function MessageBubbleImpl({ message, userAvatarUrl, userName, onRetry }: Messag
           <div
             className={cn(
               'rounded-2xl rounded-br-md px-3.5 py-2.5 text-sm leading-relaxed',
-              'bg-primary text-primary-foreground whitespace-pre-wrap break-words',
+              'bg-primary text-primary-foreground',
               'shadow-sm',
             )}
           >
-            {message.content as string}
+            <UserMessageBody content={message.content as string} />
           </div>
         </div>
       </div>
@@ -89,9 +93,12 @@ function MessageBubbleImpl({ message, userAvatarUrl, userName, onRetry }: Messag
   // ----- AI MESSAGE (left-aligned, full width, generous typography) -----
   return (
     <div
+      id={`msg-${message.id}`}
+      data-message-id={message.id}
+      data-message-role="assistant"
       role="article"
       aria-label="Spread AI response"
-      className="group flex w-full gap-3 px-3 sm:px-5 py-3"
+      className="group flex w-full gap-3 px-3 sm:px-5 py-3 scroll-mt-24"
     >
       <div className="flex-shrink-0 pt-0.5">
         <div

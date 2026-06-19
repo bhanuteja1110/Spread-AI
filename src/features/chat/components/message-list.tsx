@@ -127,6 +127,34 @@ const ErrorBanner = memo(function ErrorBanner({ error, onRetry }: { error?: Erro
   );
 });
 
+/**
+ * Scroll a message into view such that its TOP sits roughly 16-24px below the
+ * container's top edge — mirroring ChatGPT's behavior. About 65-70% of the
+ * viewport stays BELOW the message so the streaming AI response has room.
+ */
+function scrollMessageIntoView(container: HTMLElement, messageId: string) {
+  const el = container.querySelector<HTMLElement>(`[data-message-id="${messageId}"]`);
+  if (!el) return;
+
+  const containerRect = container.getBoundingClientRect();
+  const elRect = el.getBoundingClientRect();
+  // Top offset = how far we want the message top to sit below the container's top.
+  // Slightly larger on desktop so the AI bubble below has generous breathing room.
+  const desiredTopPx = Math.max(16, Math.min(container.clientHeight * 0.12, 96));
+
+  const currentTopOffset = elRect.top - containerRect.top;
+  const delta = currentTopOffset - desiredTopPx;
+
+  if (Math.abs(delta) < 4) return; // already in place
+
+  const targetScroll = container.scrollTop + delta;
+
+  container.scrollTo({
+    top: Math.max(0, targetScroll),
+    behavior: 'smooth',
+  });
+}
+
 function MessageListImpl({
   messages,
   isLoading,
@@ -135,29 +163,123 @@ function MessageListImpl({
   error,
   onRetry,
 }: MessageListProps) {
-  const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const lastMsgCountRef = useRef(messages.length);
 
-  // Auto-scroll on new messages, but only if user is already near the bottom
+  // Track the last user message id we've already scrolled to (so we don't
+  // re-scroll the same one on re-renders).
+  const lastScrolledUserIdRef = useRef<string | null>(null);
+  const prevMessagesRef = useRef<Message[]>(messages);
+  const userPinnedScrollRef = useRef(false);
+
+  // --- Effect 1: When a NEW user message is added, scroll it near the top ---
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const addedNew = messages.length !== lastMsgCountRef.current;
-    lastMsgCountRef.current = messages.length;
 
-    // Always scroll on first render, then only if near bottom
-    const distanceFromBottom =
-      container.scrollHeight - container.scrollTop - container.clientHeight;
-    if (addedNew && distanceFromBottom < 200) {
-      requestAnimationFrame(() => {
-        bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-      });
+    const prev = prevMessagesRef.current;
+    prevMessagesRef.current = messages;
+
+    if (messages.length === 0) {
+      lastScrolledUserIdRef.current = null;
+      return;
     }
-  }, [messages.length]);
+
+    // Find new user messages (count went up, last few contain a new user msg)
+    const prevUserCount = prev.filter((m) => m.role === 'user').length;
+    const currUserCount = messages.filter((m) => m.role === 'user').length;
+
+    if (currUserCount <= prevUserCount) {
+      // No new user message; nothing to do here.
+      return;
+    }
+
+    // The newest user message is the last one with role === 'user'
+    const newestUser = [...messages].reverse().find((m) => m.role === 'user');
+    if (!newestUser || newestUser.id === lastScrolledUserIdRef.current) return;
+
+    lastScrolledUserIdRef.current = newestUser.id;
+    userPinnedScrollRef.current = true;
+
+    // Wait one frame so the bubble has mounted in the DOM
+    requestAnimationFrame(() => {
+      if (!containerRef.current) return;
+      scrollMessageIntoView(containerRef.current, newestUser.id);
+      // Release the pin after streaming settles (a few seconds)
+      window.setTimeout(() => {
+        if (newestUser.id === lastScrolledUserIdRef.current) {
+          userPinnedScrollRef.current = false;
+        }
+      }, 4000);
+    });
+  }, [messages]);
+
+  // --- Effect 2: While the AI is streaming, only auto-scroll if user is near bottom ---
+  // (We don't fight the user if they've scrolled up to read earlier content.)
+  useEffect(() => {
+    if (!isLoading) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    // Stream just started: respect the user-pin position from Effect 1
+    // (don't override it). After the AI message mounts, keep the user message
+    // near the top and let the response stream into the remaining space.
+    const streamingId = window.requestAnimationFrame(() => {
+      const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+      if (!lastUser) return;
+      // Nudge slightly only if the user message has drifted far from the top
+      const el = container.querySelector<HTMLElement>(`[data-message-id="${lastUser.id}"]`);
+      if (!el) return;
+      const containerRect = container.getBoundingClientRect();
+      const elRect = el.getBoundingClientRect();
+      const drift = (elRect.top - containerRect.top) - 24;
+      // If drifted more than 80px upward (off-screen) OR if we're streaming and user is near top
+      if (Math.abs(drift) > 120) {
+        container.scrollTo({
+          top: container.scrollTop + drift,
+          behavior: 'smooth',
+        });
+      }
+    });
+
+    return () => window.cancelAnimationFrame(streamingId);
+  }, [isLoading, messages.length, messages]);
+
+  // --- Effect 3: When streaming ends (isLoading flips false), scroll to bottom ---
+  // so the tail of the response is visible. Only if user hasn't manually scrolled.
+  const wasLoadingRef = useRef(false);
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    if (wasLoadingRef.current && !isLoading) {
+      // Stream finished — gently scroll to bottom so the final token is visible
+      const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
+      if (lastAssistant) {
+        requestAnimationFrame(() => {
+          if (!containerRef.current) return;
+          const el = containerRef.current.querySelector<HTMLElement>(
+            `[data-message-id="${lastAssistant.id}"]`,
+          );
+          if (el) {
+            const rect = el.getBoundingClientRect();
+            const containerRect = containerRef.current.getBoundingClientRect();
+            const overflow = rect.bottom - containerRect.bottom;
+            if (overflow > 0) {
+              containerRef.current.scrollTo({
+                top: containerRef.current.scrollTop + overflow + 24,
+                behavior: 'smooth',
+              });
+            }
+          }
+        });
+      }
+      userPinnedScrollRef.current = false;
+    }
+    wasLoadingRef.current = isLoading;
+  }, [isLoading, messages]);
 
   const handleScroll = useCallback(() => {
-    if (!containerRef.current) return;
+    // Reserved for future "scroll to load older" pagination
   }, []);
 
   if (messages.length === 0 && !isLoading) {
@@ -175,7 +297,8 @@ function MessageListImpl({
       aria-label="Conversation messages"
       aria-live="polite"
     >
-      <div className="max-w-3xl mx-auto w-full py-3 space-y-0.5">
+      {/* Top spacer — keeps first message from hugging the header */}
+      <div className="max-w-3xl mx-auto w-full pt-4 pb-32 space-y-0.5">
         {messages.map((message, idx) => (
           <MessageBubble
             key={message.id}
@@ -196,8 +319,6 @@ function MessageListImpl({
         )}
 
         <ErrorBanner error={error} onRetry={onRetry} />
-
-        <div ref={bottomRef} aria-hidden />
       </div>
     </div>
   );
