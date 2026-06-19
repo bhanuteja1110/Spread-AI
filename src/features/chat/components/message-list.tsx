@@ -10,63 +10,67 @@ interface MessageListProps {
   isLoading: boolean;
   userAvatarUrl?: string;
   userName?: string;
-  /** Called when user scrolls to top — for pagination / infinite scroll */
   onLoadMore?: () => void;
 }
 
 const SUGGESTED_PROMPTS = [
   {
     icon: Zap,
-    iconColor: 'text-yellow-400',
+    iconColor: 'text-yellow-300',
     bg: 'bg-yellow-500/10',
     title: 'Spread Fast',
-    description: 'Ultra-low latency. Great for quick debugging, simple questions, and fast lookups.',
+    description: 'Ultra-low latency for quick debugging and fast lookups.',
     prompt: 'Help me debug this code quickly.',
   },
   {
     icon: Brain,
-    iconColor: 'text-blue-400',
+    iconColor: 'text-blue-300',
     bg: 'bg-blue-500/10',
     title: 'Spread Smart',
-    description: 'Deep reasoning. Ideal for complex architecture, system design, and analysis.',
+    description: 'Deep reasoning for complex architecture and analysis.',
     prompt: 'Help me design a scalable microservices architecture.',
   },
   {
     icon: Palette,
-    iconColor: 'text-purple-400',
+    iconColor: 'text-purple-300',
     bg: 'bg-purple-500/10',
     title: 'Spread Creative',
-    description: 'Multimodal vision and creativity. Upload images, documents, and generate ideas.',
+    description: 'Vision and creativity — images, documents, and ideas.',
     prompt: 'Analyze this image and describe what you see.',
   },
 ] as const;
 
 function EmptyState() {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center p-6 sm:p-8 overflow-y-auto">
-      <div className="max-w-3xl w-full space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
-        <div className="text-center space-y-3">
-          <div className="mx-auto h-14 w-14 rounded-2xl bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center shadow-xl mb-6">
-            <span className="text-white font-bold text-lg tracking-tight">SA</span>
+    <div className="flex flex-1 min-h-0 flex-col items-center justify-center px-4 sm:px-6 py-6 overflow-y-auto overscroll-contain">
+      <div className="max-w-3xl w-full space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="text-center space-y-2">
+          <div
+            aria-hidden
+            className="mx-auto h-12 w-12 sm:h-14 sm:w-14 rounded-xl bg-purple-600 flex items-center justify-center mb-4"
+          >
+            <span className="text-white font-bold text-base sm:text-lg tracking-tight">SA</span>
           </div>
-          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-white">
+          <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-white break-words">
             How can Spread AI help?
           </h2>
-          <p className="text-gray-500 text-base max-w-md mx-auto">
-            Choose an intelligence mode below or type your question to get started.
+          <p className="text-gray-500 text-sm max-w-md mx-auto">
+            Choose a mode below or type your question to get started.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
           {SUGGESTED_PROMPTS.map(({ icon: Icon, iconColor, bg, title, description }) => (
             <div
               key={title}
-              className="p-5 rounded-xl bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.08] hover:border-white/20 transition-all cursor-default group"
+              className="p-4 rounded-xl bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.07] hover:border-white/15 transition-colors"
             >
-              <div className={`${bg} w-10 h-10 rounded-xl flex items-center justify-center mb-4 group-hover:scale-105 transition-transform`}>
-                <Icon className={`h-5 w-5 ${iconColor}`} aria-hidden />
+              <div
+                className={`${bg} w-9 h-9 rounded-lg flex items-center justify-center mb-3`}
+              >
+                <Icon className={`h-4 w-4 ${iconColor}`} aria-hidden />
               </div>
-              <h3 className="font-semibold text-white mb-1.5 text-sm">{title}</h3>
+              <h3 className="font-medium text-white mb-1 text-sm">{title}</h3>
               <p className="text-xs text-gray-500 leading-relaxed">{description}</p>
             </div>
           ))}
@@ -86,12 +90,10 @@ export function MessageList({
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom on new messages
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages.length]);
 
-  // Infinite scroll: detect scroll to top to load older messages
   const handleScroll = useCallback(() => {
     if (!containerRef.current || !onLoadMore) return;
     if (containerRef.current.scrollTop < 80) {
@@ -107,12 +109,12 @@ export function MessageList({
     <div
       ref={containerRef}
       onScroll={onLoadMore ? handleScroll : undefined}
-      className="flex-1 overflow-y-auto overscroll-contain"
+      className="flex-1 min-h-0 overflow-y-auto overscroll-contain"
       role="log"
       aria-label="Conversation messages"
       aria-live="polite"
     >
-      <div className="max-w-4xl mx-auto px-2 sm:px-4 pt-4 pb-8 space-y-1">
+      <div className="max-w-4xl mx-auto w-full px-2 sm:px-4 pt-3 pb-6 space-y-0.5">
         {messages.map((message) => (
           <MessageBubble
             key={message.id}
@@ -122,16 +124,21 @@ export function MessageList({
           />
         ))}
 
-        {/* AI thinking indicator */}
         {isLoading && (
-          <div className="flex items-center gap-3 py-4 px-3 sm:px-4" aria-label="Spread AI is thinking">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center flex-shrink-0">
+          <div
+            className="flex items-center gap-3 py-4 px-3 sm:px-4"
+            aria-label="Spread AI is thinking"
+          >
+            <div
+              aria-hidden
+              className="h-8 w-8 rounded-full bg-purple-600 flex items-center justify-center flex-shrink-0"
+            >
               <Loader2 className="h-4 w-4 text-white animate-spin" />
             </div>
-            <div className="flex gap-1 items-center">
-              <span className="h-2 w-2 rounded-full bg-purple-400 animate-bounce [animation-delay:-0.3s]" />
-              <span className="h-2 w-2 rounded-full bg-purple-400 animate-bounce [animation-delay:-0.15s]" />
-              <span className="h-2 w-2 rounded-full bg-purple-400 animate-bounce" />
+            <div className="flex gap-1 items-center" aria-hidden>
+              <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-bounce [animation-delay:-0.3s]" />
+              <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-bounce [animation-delay:-0.15s]" />
+              <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-bounce" />
             </div>
           </div>
         )}

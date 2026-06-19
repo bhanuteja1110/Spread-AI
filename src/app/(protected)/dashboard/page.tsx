@@ -1,7 +1,5 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import { DashboardLayout } from '@/features/dashboard/components/dashboard-layout';
-
-export default function DashboardPage() {
-  return <DashboardLayout />;
+export default function DashboardRedirect() {
+  redirect('/dashboard/chat');
 }

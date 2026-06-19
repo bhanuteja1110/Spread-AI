@@ -8,7 +8,6 @@ export default async function ProtectedLayout({
   children: React.ReactNode;
 }) {
   const supabase = createClient();
-  // Validates session via Edge middleware earlier, but securely fetches user data here
   const { data: { user }, error } = await supabase.auth.getUser();
 
   if (error || !user) {
@@ -16,7 +15,7 @@ export default async function ProtectedLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background text-foreground">
+    <div className="flex h-svh w-full overflow-hidden bg-background text-foreground">
       {children}
     </div>
   );

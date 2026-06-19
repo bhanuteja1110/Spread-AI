@@ -22,7 +22,6 @@ export function ChatLayout({ conversationId }: { conversationId?: string }) {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [userMeta, setUserMeta] = useState<{ name?: string; avatarUrl?: string }>({});
 
-  // Load user metadata for avatar display in message bubbles
   useEffect(() => {
     createClient()
       .auth.getUser()
@@ -36,7 +35,11 @@ export function ChatLayout({ conversationId }: { conversationId?: string }) {
       });
   }, []);
 
-  // Fetch persisted messages from DB for this conversation
+  // Keep activeConvId in sync when navigating between conversations
+  useEffect(() => {
+    setActiveConvId(conversationId);
+  }, [conversationId]);
+
   const { data: dbMessages, isLoading: isDbLoading } = useSWR(
     activeConvId ? `messages:${activeConvId}` : null,
     () => chatService.getMessages(activeConvId!),
@@ -58,7 +61,6 @@ export function ChatLayout({ conversationId }: { conversationId?: string }) {
     }, []),
   });
 
-  // Sync DB messages into the AI SDK on initial load (only when SDK has no messages yet)
   useEffect(() => {
     if (dbMessages && messages.length === 0) {
       setMessages(dbMessages);
@@ -66,48 +68,52 @@ export function ChatLayout({ conversationId }: { conversationId?: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dbMessages]);
 
-  const handleSend = useCallback(async (finalPrompt: string) => {
-    if (!finalPrompt.trim() || isLoading) return;
+  const handleSend = useCallback(
+    async (finalPrompt: string) => {
+      if (!finalPrompt.trim() || isLoading) return;
 
-    if (!activeConvId) {
-      const title = finalPrompt.trim().slice(0, 50);
-      try {
-        const conv = await chatService.createConversation(title);
-        setActiveConvId(conv.id);
-        // Update URL without full navigation to maintain SPA behavior
-        window.history.replaceState(null, '', `/dashboard/c/${conv.id}`);
-        // Small delay to let activeConvId state propagate before sending
-        await new Promise((r) => setTimeout(r, 50));
-        append({ role: 'user', content: finalPrompt }, { body: { conversationId: conv.id } });
-      } catch {
-        toast.error('Failed to start a new conversation. Please try again.');
+      if (!activeConvId) {
+        const title = finalPrompt.trim().slice(0, 50);
+        try {
+          const conv = await chatService.createConversation(title);
+          setActiveConvId(conv.id);
+          window.history.replaceState(null, '', `/dashboard/c/${conv.id}`);
+          await new Promise((r) => setTimeout(r, 50));
+          append(
+            { role: 'user', content: finalPrompt },
+            { body: { conversationId: conv.id } },
+          );
+        } catch {
+          toast.error('Failed to start a new conversation. Please try again.');
+        }
+      } else {
+        append({ role: 'user', content: finalPrompt });
       }
-    } else {
-      append({ role: 'user', content: finalPrompt });
-    }
-  }, [activeConvId, isLoading, append]);
+    },
+    [activeConvId, isLoading, append],
+  );
 
   return (
     <div className="flex h-svh w-full overflow-hidden bg-background">
       {/* Desktop Sidebar */}
-      <div className="hidden md:flex md:w-[260px] lg:w-[300px] flex-shrink-0">
+      <aside className="hidden md:flex w-[260px] lg:w-[300px] flex-shrink-0">
         <Sidebar />
-      </div>
+      </aside>
 
-      {/* Mobile Sidebar Sheet */}
+      {/* Mobile Drawer */}
       <Sheet open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
         <SheetContent
           side="left"
-          className="p-0 w-[260px] border-r border-white/5 bg-background"
+          className="p-0 w-[280px] max-w-[85vw] border-r border-white/5 bg-background"
         >
-          <SheetTitle className="sr-only">Navigation</SheetTitle>
+          <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
           <Sidebar onClose={() => setIsSidebarOpen(false)} />
         </SheetContent>
       </Sheet>
 
       {/* Main Chat Area */}
       <div className="flex flex-col flex-1 min-w-0 relative">
-        <header className="flex h-13 items-center gap-2 px-3 sm:px-4 border-b border-white/5 bg-background/80 backdrop-blur-xl z-10 flex-shrink-0">
+        <header className="flex h-14 items-center gap-2 px-3 sm:px-4 border-b border-white/5 bg-background/95 backdrop-blur-md z-10 flex-shrink-0">
           <Button
             variant="ghost"
             size="icon"
@@ -117,12 +123,18 @@ export function ChatLayout({ conversationId }: { conversationId?: string }) {
           >
             <Menu className="h-5 w-5" />
           </Button>
-          <h1 className="text-sm font-semibold text-gray-300 truncate">Spread AI</h1>
+          <h1 className="text-sm font-semibold text-gray-200 truncate">Spread AI</h1>
         </header>
 
         {isDbLoading ? (
-          <div className="flex-1 flex items-center justify-center" aria-label="Loading conversation">
-            <div className="h-8 w-8 rounded-full border-2 border-purple-500/30 border-t-purple-500 animate-spin" />
+          <div
+            className="flex-1 flex items-center justify-center"
+            aria-label="Loading conversation"
+          >
+            <div
+              className="h-8 w-8 rounded-full border-2 border-purple-500/30 border-t-purple-500 animate-spin"
+              aria-hidden
+            />
           </div>
         ) : (
           <MessageList

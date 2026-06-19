@@ -49,34 +49,34 @@ export const MessageBubble = memo(
       ? userName.slice(0, 2).toUpperCase()
       : 'U';
 
-    return (
-      <div
-        className={cn(
-          'group flex w-full gap-3 py-5 px-3 sm:px-4 transition-colors rounded-lg',
-          isUser ? 'bg-transparent' : 'bg-white/[0.02] hover:bg-white/[0.04]',
+  return (
+    <div
+      className={cn(
+        'group flex w-full gap-2.5 sm:gap-3 py-4 sm:py-5 px-3 sm:px-4 transition-colors rounded-lg',
+        isUser ? 'bg-transparent' : 'bg-white/[0.02] hover:bg-white/[0.04]',
+      )}
+      role="article"
+      aria-label={isUser ? 'Your message' : 'Spread AI response'}
+    >
+      <div className="flex-shrink-0 pt-0.5">
+        {isUser ? (
+          <Avatar size="sm" className="h-7 w-7 sm:h-8 sm:w-8 border border-white/10">
+            <AvatarImage src={userAvatarUrl} alt={userName || 'You'} />
+            <AvatarFallback className="bg-purple-600/20 text-purple-300 text-[10px] font-semibold">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+        ) : (
+          <div
+            aria-hidden
+            className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-purple-600 flex items-center justify-center flex-shrink-0"
+          >
+            <span className="text-white text-[10px] font-bold tracking-tight">SA</span>
+          </div>
         )}
-        role="article"
-        aria-label={isUser ? 'Your message' : 'Spread AI response'}
-      >
-        <div className="flex-shrink-0 pt-0.5">
-          {isUser ? (
-            <Avatar className="h-8 w-8 border border-white/10">
-              <AvatarImage src={userAvatarUrl} alt={userName || 'You'} />
-              <AvatarFallback className="bg-purple-600/20 text-purple-300 text-xs font-semibold">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
-          ) : (
-            <div
-              className="h-8 w-8 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center shadow-md flex-shrink-0"
-              aria-hidden
-            >
-              <span className="text-white text-[10px] font-bold tracking-tight">SA</span>
-            </div>
-          )}
-        </div>
+      </div>
 
-        <div className="flex-1 space-y-1 overflow-hidden min-w-0">
+      <div className="flex-1 space-y-1 min-w-0 overflow-hidden">
           <div className="flex items-center justify-between gap-2">
             <span className="font-semibold text-sm text-gray-200">
               {isUser ? (userName || 'You') : 'Spread AI'}
