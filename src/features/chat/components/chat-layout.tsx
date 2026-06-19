@@ -15,6 +15,9 @@ import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { useChatStateRegistration } from '../context/chat-state-context';
 import { mutate as globalMutate } from 'swr';
+import { perfStart, perfEnd } from '@/lib/perf';
+import { ChatHistorySkeleton } from '@/components/loading/skeletons';
+import { LoadingState } from '@/components/loading/loading-state';
 
 export function ChatLayout({ conversationId: propConvId }: { conversationId?: string }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -30,11 +33,13 @@ export function ChatLayout({ conversationId: propConvId }: { conversationId?: st
     setKnownConvId(propConvId);
   }, [propConvId]);
 
-  // Load user meta once
+  // Load user meta exactly once. Cached at the Supabase client level —
+  // subsequent calls within the session are free.
   const userMetaLoadedRef = useRef(false);
   useEffect(() => {
     if (userMetaLoadedRef.current) return;
     userMetaLoadedRef.current = true;
+    perfStart('chat-layout.userMeta');
     createClient()
       .auth.getUser()
       .then(({ data: { user } }) => {
@@ -44,7 +49,8 @@ export function ChatLayout({ conversationId: propConvId }: { conversationId?: st
             avatarUrl: user.user_metadata?.avatar_url,
           });
         }
-      });
+      })
+      .finally(() => perfEnd('chat-layout.userMeta'));
   }, []);
 
   // Load persisted messages for the current conversation.
@@ -159,6 +165,7 @@ export function ChatLayout({ conversationId: propConvId }: { conversationId?: st
         typeof crypto !== 'undefined' && 'randomUUID' in crypto
           ? crypto.randomUUID()
           : Math.random().toString(36).slice(2);
+      perfStart('chat.handleSend');
       // eslint-disable-next-line no-console
       console.log('[chat-client] send-started', clientRequestId, {
         promptLength: finalPrompt.length,
@@ -166,14 +173,20 @@ export function ChatLayout({ conversationId: propConvId }: { conversationId?: st
       });
       try {
         const title = finalPrompt.trim().slice(0, 50);
-        const convId = await ensureConversation(title);
+        // Kick off the conversation create in parallel with the local
+        // optimistic append. We append the user message immediately so the
+        // user sees their message + typing indicator without waiting on the
+        // DB round-trip. The `useChat` body builder reads convIdRef.current,
+        // which we update as soon as the row is created.
+        const convPromise = ensureConversation(title);
+        append({ role: 'user', content: finalPrompt });
+        const convId = await convPromise;
         convIdRef.current = convId;
         // eslint-disable-next-line no-console
         console.log('[chat-client] conv-resolved', clientRequestId, { convId });
-        await append({ role: 'user', content: finalPrompt });
-        // eslint-disable-next-line no-console
-        console.log('[chat-client] append-dispatched', clientRequestId);
+        perfEnd('chat.handleSend');
       } catch (err) {
+        perfEnd('chat.handleSend');
         // eslint-disable-next-line no-console
         console.error('[chat-client] send-failed', clientRequestId, err);
         toast.error(
@@ -253,13 +266,16 @@ export function ChatLayout({ conversationId: propConvId }: { conversationId?: st
 
         {isDbLoading && messages.length === 0 ? (
           <div
-            className="flex-1 flex items-center justify-center"
+            className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-thin"
             aria-label="Loading conversation"
           >
-            <div
-              className="h-8 w-8 rounded-full border-2 border-primary/30 border-t-primary animate-spin"
-              aria-hidden
-            />
+            <ChatHistorySkeleton count={4} />
+            <div className="flex items-center justify-center pt-2">
+              <LoadingState
+                variant="inline"
+                label="Loading conversation…"
+              />
+            </div>
           </div>
         ) : (
           <MessageList

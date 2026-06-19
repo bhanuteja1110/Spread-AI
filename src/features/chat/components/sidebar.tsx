@@ -1,6 +1,6 @@
 'use client';
 
-import React, { memo, useState, useCallback } from 'react';
+import React, { memo, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,8 @@ import {
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useChatState } from '../context/chat-state-context';
+import { perfStart, perfEnd } from '@/lib/perf';
+import { TypingDots } from '@/components/loading/typing-dots';
 
 interface SidebarProps {
   onClose?: () => void;
@@ -72,8 +74,10 @@ function SidebarImpl({ onClose }: SidebarProps) {
    * scroll position, and any in-flight optimistics.
    */
   const handleNewChat = useCallback(() => {
+    perfStart('sidebar.handleNewChat');
     onClose?.();
     resetChat();
+    perfEnd('sidebar.handleNewChat');
   }, [onClose, resetChat]);
 
   const handleSelectChat = useCallback(
@@ -87,8 +91,11 @@ function SidebarImpl({ onClose }: SidebarProps) {
         });
         return;
       }
+      perfStart('sidebar.handleSelectChat');
       router.push(`/dashboard/c/${id}`);
       onClose?.();
+      // router.push fires before nav; mark end optimistically
+      requestAnimationFrame(() => perfEnd('sidebar.handleSelectChat'));
     },
     [selectionMode, router, onClose],
   );
@@ -115,21 +122,23 @@ function SidebarImpl({ onClose }: SidebarProps) {
     }
     const previous = conversations;
     setDeletingIds(new Set(ids));
-    // Optimistic
+    // Optimistic — instant UI update
     mutate(
       'conversations',
       conversations?.filter((c) => !selectedIds.has(c.id)),
       false,
     );
+    perfStart('sidebar.handleBulkDelete');
     try {
       await chatService.deleteConversations(ids);
+      perfEnd('sidebar.handleBulkDelete');
       if (currentChatId && selectedIds.has(currentChatId)) {
-        // Reset local chat state instead of navigating — preserves component instance
         resetChat();
       }
       toast.success(`Deleted ${ids.length} conversation${ids.length === 1 ? '' : 's'}`);
       exitSelectionMode();
     } catch (err) {
+      perfEnd('sidebar.handleBulkDelete');
       toast.error(err instanceof Error ? err.message : 'Failed to delete.');
       mutate('conversations', previous);
     } finally {
@@ -152,12 +161,15 @@ function SidebarImpl({ onClose }: SidebarProps) {
     setClearingAll(true);
     const previous = conversations;
     mutate('conversations', [], false);
+    perfStart('sidebar.handleClearAll');
     try {
       await chatService.deleteAllConversations();
+      perfEnd('sidebar.handleClearAll');
       toast.success('All conversations deleted');
       if (currentChatId) resetChat();
       exitSelectionMode();
     } catch (err) {
+      perfEnd('sidebar.handleClearAll');
       toast.error(err instanceof Error ? err.message : 'Failed to clear all.');
       mutate('conversations', previous);
     } finally {
@@ -177,9 +189,12 @@ function SidebarImpl({ onClose }: SidebarProps) {
         conversations?.map((c) => (c.id === id ? { ...c, title: newTitle } : c)),
         false,
       );
+      perfStart('sidebar.handleRename');
       try {
         await chatService.updateConversationTitle(id, newTitle);
+        perfEnd('sidebar.handleRename');
       } catch {
+        perfEnd('sidebar.handleRename');
         mutate('conversations', previous);
         toast.error('Failed to rename.');
       }
@@ -194,16 +209,20 @@ function SidebarImpl({ onClose }: SidebarProps) {
       if (!window.confirm('Delete this conversation? This cannot be undone.')) return;
       const previous = conversations;
       setDeletingIds((prev) => new Set(prev).add(id));
+      // Optimistic — instant UI removal
       mutate(
         'conversations',
         conversations?.filter((c) => c.id !== id),
         false,
       );
+      perfStart('sidebar.handleDelete');
       try {
         await chatService.deleteConversation(id);
+        perfEnd('sidebar.handleDelete');
         if (currentChatId === id) resetChat();
         toast.success('Conversation deleted');
       } catch (err) {
+        perfEnd('sidebar.handleDelete');
         toast.error(err instanceof Error ? err.message : 'Failed to delete.');
         mutate('conversations', previous);
       } finally {
@@ -218,9 +237,14 @@ function SidebarImpl({ onClose }: SidebarProps) {
   );
 
   const handleSettings = useCallback(() => {
+    perfStart('sidebar.handleSettings');
     router.push('/settings');
     onClose?.();
+    requestAnimationFrame(() => perfEnd('sidebar.handleSettings'));
   }, [router, onClose]);
+
+  // Memoize the list for stable referential equality in the map below.
+  const renderedConversations = useMemo(() => conversations ?? [], [conversations]);
 
   return (
     <nav
@@ -310,14 +334,17 @@ function SidebarImpl({ onClose }: SidebarProps) {
         </div>
         <ScrollArea className="h-full">
           {isLoadingConvs ? (
-            <div className="space-y-1 px-1 py-1" aria-label="Loading conversations">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-9 rounded-md bg-muted animate-pulse" aria-hidden />
-              ))}
+            <div
+              className="px-3 py-6 flex flex-col items-center gap-2 text-muted-foreground"
+              aria-label="Loading conversations"
+              role="status"
+            >
+              <TypingDots size="sm" />
+              <span className="text-xs">Loading conversations…</span>
             </div>
-          ) : conversations && conversations.length > 0 ? (
+          ) : renderedConversations.length > 0 ? (
             <ul className="space-y-0.5" role="list">
-              {conversations.map((chat) => {
+              {renderedConversations.map((chat) => {
                 const isActive = !selectionMode && currentChatId === chat.id;
                 const isSelected = selectedIds.has(chat.id);
                 const isDeleting = deletingIds.has(chat.id);

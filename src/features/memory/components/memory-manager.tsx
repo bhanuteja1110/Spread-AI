@@ -14,22 +14,15 @@ import {
 import type { Memory } from '@/services/memory.service';
 import { memoryService } from '@/services/memory.service';
 import { cn } from '@/lib/utils';
+import { perfStart, perfEnd } from '@/lib/perf';
+import { MemoryListSkeleton } from '@/components/loading/skeletons';
+import { TypingDots } from '@/components/loading/typing-dots';
 
 const SUGGESTED = [
   'I prefer TypeScript over JavaScript',
   'My timezone is IST (UTC+5:30)',
   'I am working on a Next.js 14 project',
 ];
-
-function MemorySkeleton() {
-  return (
-    <div className="space-y-2 animate-pulse" aria-label="Loading memories">
-      {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="h-14 rounded-lg border border-border bg-card/50" />
-      ))}
-    </div>
-  );
-}
 
 export function MemoryManager() {
   const [draft, setDraft] = useState('');
@@ -65,7 +58,9 @@ export function MemoryManager() {
       mutate((current) => [optimistic, ...(current ?? [])], false);
       setDraft('');
 
+      perfStart('memory.handleAdd');
       const result = await addMemoryAction(trimmed);
+      perfEnd('memory.handleAdd');
       if (result.error) {
         toast.error(result.error);
         mutate(); // rollback
@@ -83,7 +78,9 @@ export function MemoryManager() {
       const previous = memories;
       mutate((current) => (current ?? []).filter((m) => m.id !== id), false);
 
+      perfStart('memory.handleForget');
       const result = await forgetMemoryAction(id);
+      perfEnd('memory.handleForget');
       if (result.error) {
         toast.error(result.error);
         mutate(previous);
@@ -103,7 +100,9 @@ export function MemoryManager() {
     const previous = memories;
     mutate([], false);
 
+    perfStart('memory.handleClearAll');
     const result = await clearAllMemoriesAction();
+    perfEnd('memory.handleClearAll');
     if (result.error) {
       toast.error(result.error);
       mutate(previous);
@@ -198,7 +197,13 @@ export function MemoryManager() {
 
       {/* List */}
       {isLoading ? (
-        <MemorySkeleton />
+        <div className="space-y-3" role="status" aria-label="Loading memories">
+          <MemoryListSkeleton />
+          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+            <TypingDots size="sm" />
+            <span>Loading memories…</span>
+          </div>
+        </div>
       ) : error ? (
         <div
           role="alert"

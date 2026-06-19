@@ -27,6 +27,8 @@ import { uploadAndExtractAction, type UploadActionResult } from '../actions';
 import { toast } from 'sonner';
 import { useSpeech } from '@/hooks/use-speech';
 import { cn } from '@/lib/utils';
+import { perfStart, perfEnd } from '@/lib/perf';
+import { TypingDots } from '@/components/loading/typing-dots';
 
 interface Attachment {
   id: string;
@@ -90,8 +92,12 @@ export function ChatInput({
   const displayValue = isListening && interimText ? `${text} ${interimText}` : text;
 
   const submitMessage = useCallback(() => {
+    perfStart('chatInput.submit');
     const trimmed = text.trim();
-    if ((!trimmed && attachments.length === 0) || isLoading || isUploading) return;
+    if ((!trimmed && attachments.length === 0) || isLoading || isUploading) {
+      perfEnd('chatInput.submit');
+      return;
+    }
 
     if (isListening) toggleListening();
 
@@ -105,9 +111,12 @@ export function ChatInput({
     }
 
     onSend(finalPrompt);
+    // Clear input immediately — the user shouldn't see their text linger
+    // while the request is in flight. Perceived latency drops to 0.
     setText('');
     setInterimText('');
     setAttachments([]);
+    perfEnd('chatInput.submit');
   }, [text, attachments, isLoading, isUploading, isListening, toggleListening, onSend]);
 
   const onKeyDown = useCallback(
@@ -146,9 +155,11 @@ export function ChatInput({
     const formData = new FormData();
     formData.append('file', file);
 
+    perfStart('chatInput.upload');
     try {
       const result: UploadActionResult = await uploadAndExtractAction(formData);
       clearInterval(tick);
+      perfEnd('chatInput.upload');
 
       if ('error' in result) {
         toast.error(result.error);
@@ -171,6 +182,7 @@ export function ChatInput({
       ]);
     } catch (err) {
       clearInterval(tick);
+      perfEnd('chatInput.upload');
       toast.error(err instanceof Error ? err.message : 'Upload failed.');
     } finally {
       setTimeout(() => setUploadProgress(null), 400);

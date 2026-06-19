@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
+import { perfStart, perfEnd } from '@/lib/perf';
 import { type Message } from 'ai';
 
 export interface Conversation {
@@ -25,34 +26,39 @@ export const chatService = {
     const to = from + limit - 1;
 
     // Select only required columns — avoid over-fetching with SELECT *
+    perfStart('getConversations');
     const { data, error } = await supabase
       .from('conversations')
-      .select('id, user_id, title, created_at, updated_at')
+      .select('id, title, created_at, updated_at')
       .order('updated_at', { ascending: false })
       .range(from, to);
 
     if (error) throw new Error(`Failed to fetch conversations: ${error.message}`);
-    return data ?? [];
+    perfEnd('getConversations');
+    return (data ?? []) as Conversation[];
   },
 
   async createConversation(title: string): Promise<Conversation> {
     const supabase = createClient();
+    perfStart('getUser:createConversation');
     const {
       data: { user },
     } = await supabase.auth.getUser();
+    perfEnd('getUser:createConversation');
     if (!user) throw new Error('Not authenticated');
 
-    // Sanitize title to prevent XSS if title is ever rendered as HTML elsewhere
     const sanitizedTitle = title.trim().slice(0, 100) || 'New Conversation';
 
+    perfStart('createConversation');
     const { data, error } = await supabase
       .from('conversations')
       .insert({ title: sanitizedTitle, user_id: user.id })
-      .select('id, user_id, title, created_at, updated_at')
+      .select('id, title, created_at, updated_at')
       .single();
+    perfEnd('createConversation');
 
     if (error) throw new Error(`Failed to create conversation: ${error.message}`);
-    return data;
+    return data as Conversation;
   },
 
   async updateConversationTitle(id: string, title: string): Promise<Conversation> {
@@ -99,17 +105,20 @@ export const chatService = {
     const from = (page - 1) * limit;
     const to = from + limit - 1;
 
+    // Fetch ASCENDING (oldest → newest) so we don't need a JS reverse pass.
+    // The composite index `idx_messages_conversation_created` covers this.
+    perfStart('getMessages');
     const { data, error } = await supabase
       .from('messages')
       .select('id, role, content, created_at')
       .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: true })
       .range(from, to);
+    perfEnd('getMessages');
 
     if (error) throw new Error(`Failed to fetch messages: ${error.message}`);
 
-    // Reverse: fetched newest-first, UI requires oldest-first
-    return (data ?? []).reverse().map((msg: Pick<DbMessage, 'id' | 'role' | 'content' | 'created_at'>) => ({
+    return (data ?? []).map((msg: Pick<DbMessage, 'id' | 'role' | 'content' | 'created_at'>) => ({
       id: msg.id,
       role: msg.role,
       content: msg.content,

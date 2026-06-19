@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
+import { perfStart, perfEnd } from '@/lib/perf';
 
 export interface Memory {
   id: string;
@@ -14,11 +15,13 @@ export interface Memory {
 export const memoryService = {
   async list(): Promise<Memory[]> {
     const supabase = createClient();
+    perfStart('memories.list');
     const { data, error } = await supabase
       .from('memories')
-      .select('id, user_id, content, category, source_message, is_active, created_at, updated_at')
+      .select('id, content, category, source_message, is_active, created_at, updated_at')
       .order('created_at', { ascending: false })
       .limit(200);
+    perfEnd('memories.list');
     if (error) throw new Error(`Failed to fetch memories: ${error.message}`);
     return (data ?? []) as Memory[];
   },

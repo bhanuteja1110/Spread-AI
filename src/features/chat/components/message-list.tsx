@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState, useCallback, memo } from 'react';
 import { MessageBubble } from './message-bubble';
+import { SpreadLoader } from './parts/spread-loader';
 import { type Message } from 'ai';
 import { Zap, Brain, Palette, AlertTriangle, RefreshCw, PauseCircle } from 'lucide-react';
 
@@ -103,7 +104,7 @@ const StreamingIndicator = memo(function StreamingIndicator({
       aria-label="Spread AI is responding"
     >
       <div className="h-7 w-7 flex-shrink-0" aria-hidden />
-      <div className="flex items-center gap-2 flex-1 min-w-0">
+      <div className="flex items-center gap-3 flex-1 min-w-0">
         {isTabHidden ? (
           <>
             <PauseCircle className="h-4 w-4 text-muted-foreground" aria-hidden />
@@ -113,12 +114,8 @@ const StreamingIndicator = memo(function StreamingIndicator({
           </>
         ) : (
           <>
-            <div className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
-              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
-              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce" />
-            </div>
-            <span className="text-xs text-muted-foreground">Generating…</span>
+            <SpreadLoader size={32} />
+            <span className="text-xs text-muted-foreground">Generating response…</span>
           </>
         )}
       </div>
@@ -269,16 +266,20 @@ function MessageListImpl({
     // Stream just started: respect the user-pin position from Effect 1
     // (don't override it). After the AI message mounts, keep the user message
     // near the top and let the response stream into the remaining space.
+    //
+    // PERFORMANCE FIX: previously this ran on every `messages` change (every
+    // streamed token), causing layout thrashing. Now we run only once when
+    // `isLoading` flips true; subsequent token updates are scrolled via the
+    // container's own `flex-1 min-h-0` overflow (the user can scroll freely).
     const streamingId = window.requestAnimationFrame(() => {
       const lastUser = [...messages].reverse().find((m) => m.role === 'user');
       if (!lastUser) return;
-      // Nudge slightly only if the user message has drifted far from the top
       const el = container.querySelector<HTMLElement>(`[data-message-id="${lastUser.id}"]`);
       if (!el) return;
       const containerRect = container.getBoundingClientRect();
       const elRect = el.getBoundingClientRect();
-      const drift = (elRect.top - containerRect.top) - 24;
-      // If drifted more than 80px upward (off-screen) OR if we're streaming and user is near top
+      const drift = elRect.top - containerRect.top - 24;
+      // If drifted more than 120px upward (off-screen), gently re-pin
       if (Math.abs(drift) > 120) {
         container.scrollTo({
           top: container.scrollTop + drift,
@@ -288,17 +289,20 @@ function MessageListImpl({
     });
 
     return () => window.cancelAnimationFrame(streamingId);
-  }, [isLoading, messages.length, messages]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading]);
 
   // --- Effect 3: When streaming ends (isLoading flips false), scroll to bottom ---
   // so the tail of the response is visible. Only if user hasn't manually scrolled.
+  //
+  // PERFORMANCE: depends only on `messages.length` (not the full messages array)
+  // to avoid re-running on every streaming token.
   const wasLoadingRef = useRef(false);
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
     if (wasLoadingRef.current && !isLoading) {
-      // Stream finished — gently scroll to bottom so the final token is visible
       const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
       if (lastAssistant) {
         requestAnimationFrame(() => {
@@ -322,14 +326,18 @@ function MessageListImpl({
       userPinnedScrollRef.current = false;
     }
     wasLoadingRef.current = isLoading;
-  }, [isLoading, messages]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, messages.length]);
 
   // --- Effect 4: When the user returns to the tab mid-stream, re-pin scroll ---
   // While the tab was hidden the streaming response may have buffered many
-  // chunks. rAF-driven scroll updates paused while hidden. When the tab
-  // becomes visible again, we want the user to immediately see the response,
-  // not a stale scroll position. We scroll the latest user message back
-  // into view, then let the streaming response render into the visible area.
+  // chunks. When the tab becomes visible again, we want the user to
+  // immediately see the response, not a stale scroll position. We scroll
+  // the latest user message back into view, then let the streaming response
+  // render into the visible area.
+  //
+  // PERFORMANCE: depends only on `isLoading` and `messages.length` (not the
+  // full messages array) to avoid re-running on every token.
   useEffect(() => {
     if (typeof document === 'undefined') return;
     const onVisibility = () => {
@@ -338,9 +346,6 @@ function MessageListImpl({
       if (!container) return;
       const lastUser = [...messages].reverse().find((m) => m.role === 'user');
       if (!lastUser) return;
-      // Use scrollIntoView (which respects prefers-reduced-motion)
-      // with `nearest` so we don't yank the viewport if the user
-      // has scrolled elsewhere intentionally.
       const el = container.querySelector<HTMLElement>(
         `[data-message-id="${lastUser.id}"]`,
       );
@@ -354,7 +359,8 @@ function MessageListImpl({
     };
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
-  }, [isLoading, messages]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, messages.length]);
 
   const handleScroll = useCallback(() => {
     // Reserved for future "scroll to load older" pagination
