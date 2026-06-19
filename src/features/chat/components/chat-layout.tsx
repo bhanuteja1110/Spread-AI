@@ -155,15 +155,27 @@ export function ChatLayout({ conversationId: propConvId }: { conversationId?: st
   const handleSend = useCallback(
     async (finalPrompt: string) => {
       if (!finalPrompt.trim() || isLoading) return;
+      const clientRequestId =
+        typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : Math.random().toString(36).slice(2);
+      // eslint-disable-next-line no-console
+      console.log('[chat-client] send-started', clientRequestId, {
+        promptLength: finalPrompt.length,
+        webSearch: webSearchEnabled,
+      });
       try {
         const title = finalPrompt.trim().slice(0, 50);
         const convId = await ensureConversation(title);
-        // Defensive: keep ref in sync (ensureConversation already does, but
-        // belt-and-suspenders for direct calls from ChatInput)
         convIdRef.current = convId;
+        // eslint-disable-next-line no-console
+        console.log('[chat-client] conv-resolved', clientRequestId, { convId });
         await append({ role: 'user', content: finalPrompt });
+        // eslint-disable-next-line no-console
+        console.log('[chat-client] append-dispatched', clientRequestId);
       } catch (err) {
-        console.error('[chat] send failed:', err);
+        // eslint-disable-next-line no-console
+        console.error('[chat-client] send-failed', clientRequestId, err);
         toast.error(
           err instanceof Error
             ? `Failed to send: ${err.message.slice(0, 120)}`
@@ -171,7 +183,7 @@ export function ChatLayout({ conversationId: propConvId }: { conversationId?: st
         );
       }
     },
-    [isLoading, append, ensureConversation],
+    [isLoading, append, ensureConversation, webSearchEnabled],
   );
 
   const handleRetry = useCallback(() => {
