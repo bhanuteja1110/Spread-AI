@@ -6,8 +6,17 @@ import { tavilySearch, formatSourcesForPrompt } from '@/lib/tavily/search';
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
-// Matches Vercel's Fluid compute max — ensures streams don't time out mid-response
-export const maxDuration = 60;
+// Edge runtime — lets us stream for up to 300s on Vercel Pro and avoids
+// cold starts. Edge has a 25s limit on Hobby plan; if the user is on Hobby
+// the build will warn but still succeed. Streaming through edge is also
+// more resilient to tab-switching throttling because the response is
+// pushed via the edge network rather than held by a serverless function.
+export const runtime = 'edge';
+
+// Upper bound on the function lifetime. Edge supports up to 300s on Pro;
+// on Hobby this is clipped to 25s by the platform. We set 300 so long
+// responses never get cut off mid-sentence on Pro plans.
+export const maxDuration = 300;
 
 const FREE_TIER_LIMIT = 50;
 

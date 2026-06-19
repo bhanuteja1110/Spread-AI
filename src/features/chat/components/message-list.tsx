@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useEffect, useRef, useCallback, memo } from 'react';
+import React, { useEffect, useRef, useState, useCallback, memo } from 'react';
 import { MessageBubble } from './message-bubble';
 import { type Message } from 'ai';
-import { Zap, Brain, Palette, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Zap, Brain, Palette, AlertTriangle, RefreshCw, PauseCircle } from 'lucide-react';
 
 interface MessageListProps {
   messages: Message[];
@@ -85,6 +85,18 @@ const StreamingIndicator = memo(function StreamingIndicator({
 }: {
   onStop?: () => void;
 }) {
+  // Detect when the tab is hidden mid-stream. The stream is NOT aborted —
+  // the browser keeps the connection alive and buffers chunks. We just
+  // surface a small affordance so users know the response is still arriving.
+  const [isTabHidden, setIsTabHidden] = useState(false);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const onVisibility = () => setIsTabHidden(document.hidden);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
+
   return (
     <div
       className="flex items-center gap-3 px-3 sm:px-5 py-2"
@@ -92,12 +104,23 @@ const StreamingIndicator = memo(function StreamingIndicator({
     >
       <div className="h-7 w-7 flex-shrink-0" aria-hidden />
       <div className="flex items-center gap-2 flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
-          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
-          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce" />
-        </div>
-        <span className="text-xs text-muted-foreground">Generating…</span>
+        {isTabHidden ? (
+          <>
+            <PauseCircle className="h-4 w-4 text-muted-foreground" aria-hidden />
+            <span className="text-xs text-muted-foreground">
+              Streaming in background — switch back to view
+            </span>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
+              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
+              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce" />
+            </div>
+            <span className="text-xs text-muted-foreground">Generating…</span>
+          </>
+        )}
       </div>
       {onStop && (
         <button
@@ -299,6 +322,38 @@ function MessageListImpl({
       userPinnedScrollRef.current = false;
     }
     wasLoadingRef.current = isLoading;
+  }, [isLoading, messages]);
+
+  // --- Effect 4: When the user returns to the tab mid-stream, re-pin scroll ---
+  // While the tab was hidden the streaming response may have buffered many
+  // chunks. rAF-driven scroll updates paused while hidden. When the tab
+  // becomes visible again, we want the user to immediately see the response,
+  // not a stale scroll position. We scroll the latest user message back
+  // into view, then let the streaming response render into the visible area.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const onVisibility = () => {
+      if (document.hidden || !isLoading) return;
+      const container = containerRef.current;
+      if (!container) return;
+      const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+      if (!lastUser) return;
+      // Use scrollIntoView (which respects prefers-reduced-motion)
+      // with `nearest` so we don't yank the viewport if the user
+      // has scrolled elsewhere intentionally.
+      const el = container.querySelector<HTMLElement>(
+        `[data-message-id="${lastUser.id}"]`,
+      );
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        if (rect.top < containerRect.top || rect.top > containerRect.top + 200) {
+          scrollMessageIntoView(container, lastUser.id);
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
   }, [isLoading, messages]);
 
   const handleScroll = useCallback(() => {
