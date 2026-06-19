@@ -20,19 +20,17 @@ export function ChatLayout({ conversationId: propConvId }: { conversationId?: st
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [userMeta, setUserMeta] = useState<{ name?: string; avatarUrl?: string }>({});
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
 
-  // The conv id we KNOW about (from URL or from a successful createConversation).
-  // This is the single source of truth — we never duplicate it.
   const [knownConvId, setKnownConvId] = useState<string | undefined>(propConvId);
-
-  // Cache in-flight createConversation promise so spam-clicks reuse it
   const creatingConvRef = useRef<Promise<string> | null>(null);
 
-  // Sync from URL prop on navigation between saved chats
+  // Keep URL prop → local state in sync on navigation
   useEffect(() => {
     setKnownConvId(propConvId);
   }, [propConvId]);
 
+  // Load user meta once
   const userMetaLoadedRef = useRef(false);
   useEffect(() => {
     if (userMetaLoadedRef.current) return;
@@ -49,73 +47,98 @@ export function ChatLayout({ conversationId: propConvId }: { conversationId?: st
       });
   }, []);
 
-  // Load persisted messages for the currently-known conversation.
-  // SWR key changes only when knownConvId flips — never mid-stream.
+  // Load persisted messages for the current conversation.
+  // KEY CHANGE: we now pass these to useChat as `initialMessages` so they're
+  // available on the FIRST render — no race with setMessages().
   const { data: dbMessages, isLoading: isDbLoading } = useSWR(
     knownConvId ? `messages:${knownConvId}` : null,
     () => chatService.getMessages(knownConvId!),
     {
       revalidateOnFocus: false,
       revalidateOnReconnect: false,
-      // Never refetch mid-conversation; messages stream live via useChat
       dedupingInterval: 60_000,
     },
   );
 
-  // ---- The KEY change: NO `id` prop on useChat ----
-  // useChat internally derives chatKey = [api, id]. If we passed the
-  // conversation id, every time it flipped (e.g. after creating the row
-  // on first send) the SWR-backed messages store would reset to initialMessages,
-  // wiping the in-flight stream and rendered messages. By omitting `id`,
-  // the hook uses its stable hookId for the entire component lifetime.
-  //
-  // We DO pass `conversationId` per-append() in `body` so the server knows
-  // which conversation to write to.
-  const { messages, isLoading, setMessages, append, error, reload, stop } = useChat({
-    api: '/api/chat',
-    onError: useCallback((err: Error) => {
-      console.error('[chat] error:', err);
-      if (err.message.includes('429') || err.message.includes('QUOTA_EXCEEDED')) {
-        setShowUpgradeModal(true);
-      } else {
-        toast.error('Failed to get a response. Please try again.');
-      }
-    }, []),
-  });
-
-  // Sync persisted DB messages into useChat ONCE per knownConvId change.
-  // We never overwrite an in-flight stream (messages.length > 0).
-  const syncedConvRef = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    if (dbMessages && syncedConvRef.current !== knownConvId) {
-      syncedConvRef.current = knownConvId;
-      // Only seed if AI SDK is empty (fresh navigation into saved chat)
-      if (messages.length === 0) setMessages(dbMessages);
+  // Track which conversation has been "seeded" into useChat's initial state.
+  const seededConvIdRef = useRef<string | undefined>(undefined);
+  const initialMessages = React.useMemo(() => {
+    // Only seed when we have a conversation AND we haven't already seeded it
+    if (knownConvId && seededConvIdRef.current !== knownConvId) {
+      seededConvIdRef.current = knownConvId;
+      // Reset for new conversation; useChat receives initialMessages only once.
+      if (dbMessages) return dbMessages;
     }
+    return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dbMessages, knownConvId]);
 
   /**
-   * Ensure a conversation row exists. Idempotent under concurrent calls —
-   * they share the same in-flight promise.
+   * useChat — bullet-proof configuration.
    *
-   * Critical: this NEVER causes `useChat` to remount. We just update a
-   * piece of React state + the URL via replaceState.
+   * 1) `initialMessages` seeds persisted history on the very first render,
+   *    avoiding the previous "setMessages after mount" race that could lose
+   *    messages sent quickly after navigation.
+   * 2) `experimental_prepareRequestBody` injects `conversationId` into EVERY
+   *    request (initial, append, reload) from a ref, so it can't be lost
+   *    mid-stream or due to stale closures.
+   * 3) No `id` prop — the hook keeps a stable internal key for the component
+   *    lifetime, so the SWR-backed `messages` store doesn't reset.
+   */
+  const convIdRef = useRef<string | undefined>(propConvId);
+  useEffect(() => {
+    convIdRef.current = knownConvId;
+  }, [knownConvId]);
+
+  const { messages, isLoading, setMessages, append, error, reload, stop } = useChat({
+    api: '/api/chat',
+    initialMessages,
+    experimental_prepareRequestBody: ({ messages: msgs }) => ({
+      messages: msgs,
+      conversationId: convIdRef.current,
+      webSearch: webSearchEnabled,
+    }),
+    onError: useCallback((err: Error) => {
+      console.error('[chat] error:', err);
+      if (
+        err.message.includes('429') ||
+        err.message.includes('QUOTA_EXCEEDED') ||
+        /"code":"QUOTA_EXCEEDED"/.test(err.message)
+      ) {
+        setShowUpgradeModal(true);
+        return;
+      }
+      // Surface the actual error in development for faster debugging
+      const debugInfo = process.env.NODE_ENV === 'development' ? ` (${err.message.slice(0, 140)})` : '';
+      toast.error(`Failed to get a response${debugInfo}`);
+    }, []),
+    onFinish: useCallback(() => {
+      // After a stream completes in an existing chat, mark messages as fresh
+      // so a navigation-back triggers a refetch on next visit.
+      if (knownConvId) {
+        globalMutate(`messages:${knownConvId}`);
+      }
+    }, [knownConvId]),
+  });
+
+  /**
+   * Ensure a conversation row exists. Idempotent under concurrent calls.
+   * Updates ref synchronously so the next request body includes the id.
    */
   const ensureConversation = useCallback(
     async (title: string): Promise<string> => {
-      if (knownConvId) return knownConvId;
+      const current = convIdRef.current;
+      if (current) return current;
       if (creatingConvRef.current) return creatingConvRef.current;
 
       const promise = (async (): Promise<string> => {
         const conv = await chatService.createConversation(title);
-        // 1) update state — does NOT remount useChat (we removed the `id` prop)
+        convIdRef.current = conv.id;
         setKnownConvId(conv.id);
-        // 2) update URL silently so a refresh keeps you in the same chat
+        seededConvIdRef.current = conv.id;
         if (typeof window !== 'undefined') {
           window.history.replaceState(null, '', `/dashboard/c/${conv.id}`);
         }
-        // 3) refresh sidebar list so the new chat appears
         globalMutate('conversations');
         return conv.id;
       })();
@@ -126,7 +149,7 @@ export function ChatLayout({ conversationId: propConvId }: { conversationId?: st
         creatingConvRef.current = null;
       }
     },
-    [knownConvId],
+    [],
   );
 
   const handleSend = useCallback(
@@ -135,13 +158,17 @@ export function ChatLayout({ conversationId: propConvId }: { conversationId?: st
       try {
         const title = finalPrompt.trim().slice(0, 50);
         const convId = await ensureConversation(title);
-        append(
-          { role: 'user', content: finalPrompt },
-          { body: { conversationId: convId } },
-        );
+        // Defensive: keep ref in sync (ensureConversation already does, but
+        // belt-and-suspenders for direct calls from ChatInput)
+        convIdRef.current = convId;
+        await append({ role: 'user', content: finalPrompt });
       } catch (err) {
         console.error('[chat] send failed:', err);
-        toast.error('Failed to start a new conversation. Please try again.');
+        toast.error(
+          err instanceof Error
+            ? `Failed to send: ${err.message.slice(0, 120)}`
+            : 'Failed to send message.',
+        );
       }
     },
     [isLoading, append, ensureConversation],
@@ -152,12 +179,14 @@ export function ChatLayout({ conversationId: propConvId }: { conversationId?: st
     reload();
   }, [error, isLoading, reload]);
 
-  /**
-   * Hard reset to a fresh draft. Called by Sidebar's "New Chat" button.
-   *
-   * Stops any in-flight stream, clears messages, drops knownConvId,
-   * rewrites the URL to /dashboard — all without unmounting the component.
-   */
+  const handleStop = useCallback(() => {
+    try {
+      stop?.();
+    } catch {
+      /* ignore */
+    }
+  }, [stop]);
+
   const resetChat = useCallback(() => {
     try {
       stop?.();
@@ -165,14 +194,14 @@ export function ChatLayout({ conversationId: propConvId }: { conversationId?: st
       /* ignore */
     }
     setMessages([]);
+    convIdRef.current = undefined;
     setKnownConvId(undefined);
-    syncedConvRef.current = undefined;
+    seededConvIdRef.current = undefined;
     if (typeof window !== 'undefined' && window.location.pathname !== '/dashboard') {
       window.history.replaceState(null, '', '/dashboard');
     }
   }, [setMessages, stop]);
 
-  // Expose resetChat to siblings (Sidebar) via context
   useChatStateRegistration(resetChat);
 
   const closeSidebar = useCallback(() => setIsSidebarOpen(false), []);
@@ -210,7 +239,7 @@ export function ChatLayout({ conversationId: propConvId }: { conversationId?: st
           </h1>
         </header>
 
-        {isDbLoading ? (
+        {isDbLoading && messages.length === 0 ? (
           <div
             className="flex-1 flex items-center justify-center"
             aria-label="Loading conversation"
@@ -226,12 +255,19 @@ export function ChatLayout({ conversationId: propConvId }: { conversationId?: st
             isLoading={isLoading}
             error={error}
             onRetry={handleRetry}
+            onStop={handleStop}
             userAvatarUrl={userMeta.avatarUrl}
             userName={userMeta.name}
           />
         )}
 
-        <ChatInput isLoading={isLoading} onSend={handleSend} />
+        <ChatInput
+          isLoading={isLoading}
+          onSend={handleSend}
+          onStop={handleStop}
+          webSearchEnabled={webSearchEnabled}
+          onToggleWebSearch={() => setWebSearchEnabled((v) => !v)}
+        />
         <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
       </div>
     </div>

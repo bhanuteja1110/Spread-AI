@@ -2,6 +2,7 @@ import { streamText, type Message, type CoreMessage } from 'ai';
 import { nvidiaClient, DEFAULT_NVIDIA_MODEL, DEFAULT_VISION_MODEL } from '@/lib/nvidia/client';
 import { manageContextWindow, type MessageContentPart } from '@/lib/nvidia/context-manager';
 import { memoryService } from '@/services/memory.service';
+import { tavilySearch, formatSourcesForPrompt } from '@/lib/tavily/search';
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
@@ -29,6 +30,7 @@ const LEGACY_IMAGE_REGEX = /\[Attached Image: .*? - (https?:\/\/[^\]]+)\]/g;
 interface ChatRequestBody {
   messages: Message[];
   conversationId: string;
+  webSearch?: boolean;
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -41,7 +43,7 @@ export async function POST(req: Request): Promise<Response> {
       return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 });
     }
 
-    const { messages, conversationId } = body;
+    const { messages, conversationId, webSearch } = body;
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json({ error: 'messages array is required.' }, { status: 400 });
@@ -187,6 +189,38 @@ export async function POST(req: Request): Promise<Response> {
       console.error('[memory] retrieval failed:', err);
     }
 
+    // --- Web Search (Tavily) ---
+    // Only runs if the client toggled 🌐 Search ON for this request.
+    // The latest user message becomes the search query.
+    let webSearchContext = '';
+    let webSources: { title: string; url: string; sourceIndex: number }[] = [];
+    if (webSearch) {
+      const latestUserMessage = [...messages].reverse().find((m) => m.role === 'user');
+      const rawQuery =
+        typeof latestUserMessage?.content === 'string' ? latestUserMessage.content : '';
+      // Strip attachment markers to get a clean search query
+      const query = rawQuery
+        .replace(IMAGE_URL_REGEX, '')
+        .replace(LEGACY_IMAGE_REGEX, '')
+        .replace(/<document[\s\S]*?<\/document>/g, '')
+        .replace(/\[Attached Image:[^\]]*\]/g, '')
+        .trim();
+
+      if (query) {
+        try {
+          const result = await tavilySearch(query, { maxResults: 5 });
+          webSearchContext = formatSourcesForPrompt(result);
+          webSources = result.sources.map((s, i) => ({
+            title: s.title,
+            url: s.url,
+            sourceIndex: i + 1,
+          }));
+        } catch (err) {
+          console.error('[tavily] integration error:', err);
+        }
+      }
+    }
+
     // --- Multimodal Vision Detection & Server-Side Image Buffer Fetching ---
     // Why: NVIDIA NIM vision models often block outbound networking (meaning they can't fetch external URLs).
     // To ensure the model sees the image, we download the signed URL into a Uint8Array.
@@ -250,16 +284,32 @@ export async function POST(req: Request): Promise<Response> {
     const result = await streamText({
       model: nvidiaClient(selectedModel),
       messages: optimizedMessages,
-      system: SYSTEM_PROMPT + memoryContext,
+      system:
+        SYSTEM_PROMPT +
+        memoryContext +
+        (webSearchContext
+          ? `\n\nWhen citing web sources, use [n] notation inline (e.g. "According to [1]…"). End your reply with a "Sources:" section listing each cited [n] with its title and URL.${webSearchContext}`
+          : ''),
       maxRetries: 2,
       temperature: 0.7,
       async onFinish({ text }) {
         if (!text) return;
+
+        // If web search was used, append the structured source list to the
+        // persisted message so the UI can render clickable citations later.
+        let contentToPersist = text;
+        if (webSources.length > 0) {
+          const sourcesBlock =
+            '\n\n---\nSources:\n' +
+            webSources.map((s) => `[${s.sourceIndex}] ${s.title} — ${s.url}`).join('\n');
+          contentToPersist = text + sourcesBlock;
+        }
+
         const { error } = await supabase.from('messages').insert({
           conversation_id: resolvedConvId,
           user_id: user.id,
           role: 'assistant',
-          content: text,
+          content: contentToPersist,
         });
         if (error) console.error('Failed to persist assistant message:', error);
       },

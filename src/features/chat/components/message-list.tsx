@@ -12,6 +12,7 @@ interface MessageListProps {
   userName?: string;
   error?: Error | null;
   onRetry?: () => void;
+  onStop?: () => void;
 }
 
 const SUGGESTED_PROMPTS = [
@@ -79,18 +80,39 @@ const EmptyState = memo(function EmptyState() {
   );
 });
 
-const StreamingIndicator = memo(function StreamingIndicator() {
+const StreamingIndicator = memo(function StreamingIndicator({
+  onStop,
+}: {
+  onStop?: () => void;
+}) {
   return (
     <div
       className="flex items-center gap-3 px-3 sm:px-5 py-2"
       aria-label="Spread AI is responding"
     >
       <div className="h-7 w-7 flex-shrink-0" aria-hidden />
-      <div className="flex items-center gap-1.5">
-        <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
-        <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
-        <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce" />
+      <div className="flex items-center gap-2 flex-1 min-w-0">
+        <div className="flex items-center gap-1.5">
+          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
+          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
+          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce" />
+        </div>
+        <span className="text-xs text-muted-foreground">Generating…</span>
       </div>
+      {onStop && (
+        <button
+          type="button"
+          onClick={onStop}
+          aria-label="Stop generating"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border border-border bg-card hover:bg-accent text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+        >
+          <span
+            aria-hidden
+            className="block h-2 w-2 bg-foreground rounded-[1px]"
+          />
+          Stop
+        </button>
+      )}
     </div>
   );
 });
@@ -162,6 +184,7 @@ function MessageListImpl({
   userName,
   error,
   onRetry,
+  onStop,
 }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -315,7 +338,7 @@ function MessageListImpl({
         ))}
 
         {isLoading && messages[messages.length - 1]?.role !== 'assistant' && (
-          <StreamingIndicator />
+          <StreamingIndicator onStop={onStop} />
         )}
 
         <ErrorBanner error={error} onRetry={onRetry} />

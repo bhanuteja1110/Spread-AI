@@ -22,6 +22,9 @@ const envSchema = z.object({
 
   // NVIDIA AI (server-only — NEVER expose to client)
   NVIDIA_API_KEY: z.string().min(1),
+
+  // Tavily Web Search (server-only — NEVER expose to client)
+  TAVILY_API_KEY: z.string().min(1).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -43,6 +46,7 @@ const parseEnv = (): Env => {
     // we provide dummy values when running in the browser. They will never be used anyway.
     SUPABASE_SERVICE_ROLE_KEY: isServer ? process.env.SUPABASE_SERVICE_ROLE_KEY : 'client-side-dummy',
     NVIDIA_API_KEY: isServer ? process.env.NVIDIA_API_KEY : 'client-side-dummy',
+    TAVILY_API_KEY: isServer ? process.env.TAVILY_API_KEY : 'client-side-dummy',
   });
 
   if (!parsed.success) {

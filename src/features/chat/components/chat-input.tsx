@@ -20,6 +20,8 @@ import {
   Mic,
   MicOff,
   UploadCloud,
+  Globe,
+  Square,
 } from 'lucide-react';
 import { uploadAndExtractAction, type UploadActionResult } from '../actions';
 import { toast } from 'sonner';
@@ -38,11 +40,20 @@ interface Attachment {
 interface ChatInputProps {
   isLoading: boolean;
   onSend: (prompt: string) => void;
+  onStop?: () => void;
+  webSearchEnabled?: boolean;
+  onToggleWebSearch?: () => void;
 }
 
 const MAX_HEIGHT = 200;
 
-export function ChatInput({ isLoading, onSend }: ChatInputProps) {
+export function ChatInput({
+  isLoading,
+  onSend,
+  onStop,
+  webSearchEnabled = false,
+  onToggleWebSearch,
+}: ChatInputProps) {
   const [text, setText] = useState('');
   const [interimText, setInterimText] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -69,7 +80,6 @@ export function ChatInput({ isLoading, onSend }: ChatInputProps) {
     onError: handleSpeechError,
   });
 
-  // Auto-resize textarea
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -88,23 +98,12 @@ export function ChatInput({ isLoading, onSend }: ChatInputProps) {
     let finalPrompt = trimmed;
     for (const att of attachments) {
       if (att.extractedText) {
-        // Wrap extracted text in a structured block so the AI knows it's a doc,
-        // not user-typed text. The user's bubble parser will display this
-        // as a clean pill; the actual extracted text goes only to the model.
         finalPrompt += `\n\n<document title="${att.name}">\n${att.extractedText}\n</document>`;
       } else if (att.type.startsWith('image/')) {
-        // Image: reference the stored signed URL privately in the prompt
-        // (model needs it for vision), but DO NOT include it in the rendered
-        // user message — the bubble parser displays just the filename.
         finalPrompt += `\n\n[Attached Image: ${att.name}]\n<image_url>${att.url}</image_url>`;
       }
     }
 
-    // The persisted message body is the parsed "user-visible" form (URLs
-    // stripped). The full finalPrompt (with URLs) is sent privately to the
-    // server via an out-of-band mechanism in chat-layout.tsx — but since
-    // ai/react's append() takes a single content field, we keep URLs in the
-    // stored content behind a tag that the bubble renderer strips.
     onSend(finalPrompt);
     setText('');
     setInterimText('');
@@ -138,7 +137,6 @@ export function ChatInput({ isLoading, onSend }: ChatInputProps) {
     setIsUploading(true);
     setUploadProgress({ name: file.name, pct: 0 });
 
-    // Animated progress while server processes
     let pct = 5;
     const tick = setInterval(() => {
       pct = Math.min(pct + Math.random() * 18, 88);
@@ -248,7 +246,6 @@ export function ChatInput({ isLoading, onSend }: ChatInputProps) {
       onDrop={handleDrop}
       className="p-3 sm:p-4 bg-background/95 backdrop-blur-md border-t border-border w-full relative z-20"
     >
-      {/* Drag-and-drop overlay */}
       {isDragging && (
         <div
           aria-hidden
@@ -262,7 +259,6 @@ export function ChatInput({ isLoading, onSend }: ChatInputProps) {
       )}
 
       <div className="max-w-3xl mx-auto flex flex-col gap-2">
-        {/* Attachments */}
         {attachments.length > 0 && (
           <div className="flex flex-wrap gap-2 px-1" role="list" aria-label="Attached files">
             {attachments.map((att) => (
@@ -293,7 +289,6 @@ export function ChatInput({ isLoading, onSend }: ChatInputProps) {
           </div>
         )}
 
-        {/* Upload progress */}
         {uploadProgress && (
           <div
             role="status"
@@ -348,18 +343,42 @@ export function ChatInput({ isLoading, onSend }: ChatInputProps) {
                 ? 'Listening…'
                 : attachments.length > 0
                 ? 'Add a message (optional)…'
+                : webSearchEnabled
+                ? 'Search the web or ask anything…'
                 : 'Message Spread AI…'
             }
             aria-label="Message input"
+            // MOBILE ZOOM FIX: iOS Safari and Android Chrome both zoom into
+            // the focused field if computed font-size is < 16px. Force 16px.
+            style={{ fontSize: '16px', maxHeight: `${MAX_HEIGHT}px` }}
             className={cn(
-              'flex-1 min-w-0 !h-auto !min-h-0 resize-none bg-transparent !border-0 !shadow-none !ring-0 text-sm px-1 py-3 placeholder:text-muted-foreground focus-visible:!ring-0',
+              'flex-1 min-w-0 !h-auto !min-h-0 resize-none bg-transparent !border-0 !shadow-none !ring-0 text-base px-1 py-3 placeholder:text-muted-foreground focus-visible:!ring-0',
               isListening ? 'text-primary' : 'text-foreground',
             )}
-            style={{ height: '44px', maxHeight: `${MAX_HEIGHT}px` }}
             spellCheck={false}
           />
 
           <div className="flex items-center gap-0.5 sm:gap-1 p-1.5 sm:p-2 flex-shrink-0">
+            {onToggleWebSearch && (
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                onClick={onToggleWebSearch}
+                aria-label={webSearchEnabled ? 'Disable web search' : 'Enable web search'}
+                aria-pressed={webSearchEnabled}
+                title={webSearchEnabled ? 'Web search ON' : 'Web search OFF'}
+                className={cn(
+                  'h-8 w-8 sm:h-9 sm:w-9 rounded-lg transition-colors',
+                  webSearchEnabled
+                    ? 'bg-primary/15 text-primary hover:bg-primary/25'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent',
+                )}
+              >
+                <Globe className="h-4 w-4" aria-hidden />
+              </Button>
+            )}
+
             {isSupported && (
               <Button
                 type="button"
@@ -379,20 +398,33 @@ export function ChatInput({ isLoading, onSend }: ChatInputProps) {
               </Button>
             )}
 
-            <Button
-              type="button"
-              size="icon"
-              onClick={submitMessage}
-              disabled={!canSubmit}
-              aria-label="Send message"
-              className="h-8 w-8 sm:h-9 sm:w-9 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors"
-            >
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <CornerDownLeft className="h-4 w-4" />
-              )}
-            </Button>
+            {isLoading && onStop ? (
+              <Button
+                type="button"
+                size="icon"
+                onClick={onStop}
+                aria-label="Stop generating"
+                title="Stop generating"
+                className="h-8 w-8 sm:h-9 sm:w-9 bg-foreground text-background hover:bg-foreground/85 rounded-lg transition-colors"
+              >
+                <Square className="h-3.5 w-3.5" aria-hidden />
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="icon"
+                onClick={submitMessage}
+                disabled={!canSubmit}
+                aria-label="Send message"
+                className="h-8 w-8 sm:h-9 sm:w-9 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <CornerDownLeft className="h-4 w-4" />
+                )}
+              </Button>
+            )}
           </div>
         </div>
 

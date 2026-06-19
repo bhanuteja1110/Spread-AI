@@ -1,5 +1,5 @@
 import './globals.css';
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import { Toaster } from '@/components/ui/sonner';
 import { ThemeProvider } from '@/components/theme-provider';
@@ -23,6 +23,19 @@ export const metadata: Metadata = {
     description: 'Advanced AI coding assistant powered by NVIDIA.',
     siteName: 'Spread AI',
   },
+};
+
+// Viewport — width-only. We deliberately DO NOT set maximumScale or
+// userScalable, so users retain pinch-to-zoom accessibility (WCAG 1.4.4).
+// The 16px font-size on inputs/textareas (see globals.css) is what prevents
+// iOS Safari / Android Chrome from auto-zooming on form-field focus.
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#080b12' },
+  ],
 };
 
 // Block FOUC: read stored theme (or system preference) and apply the matching

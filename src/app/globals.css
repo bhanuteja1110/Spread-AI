@@ -149,6 +149,21 @@
     font-family: var(--font-sans, system-ui, sans-serif);
   }
 
+  /* ============================================================
+     MOBILE ZOOM FIX
+     iOS Safari and Android Chrome will zoom the viewport when an
+     <input> or <textarea> is focused if its computed font-size is
+     < 16px. Force every form field to use 16px so the layout stays
+     stable when the user taps to type. Authors can still override
+     per-field via inline styles when truly needed.
+     ============================================================ */
+  input,
+  textarea,
+  select,
+  button {
+    font-size: 16px;
+  }
+
   /* next-themes disables transitions on theme change — but for everything
      else we want subtle, theme-aware color transitions. */
   *,
