@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { AuthLayout } from '@/features/auth/components/auth-layout';
 import { LoginForm } from '@/features/auth/components/login-form';
 import { OAuthButtons } from '@/features/auth/components/oauth-buttons';
-import { ROUTES } from '@/lib/constants';
 
 export const metadata: Metadata = {
   title: 'Sign In | Spread AI',
@@ -15,16 +14,16 @@ export default function LoginPage() {
     <AuthLayout>
       <div className="flex flex-col space-y-6">
         <div className="flex flex-col space-y-2 text-center">
-          <h1 className="text-3xl font-bold tracking-tight text-white">Welcome back</h1>
-          <p className="text-sm text-gray-300">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Welcome back</h1>
+          <p className="text-sm text-muted-foreground">
             Enter your email to sign in to your account
           </p>
         </div>
-        
+
         <LoginForm />
 
         <div className="relative">
-          <div className="absolute inset-0 flex items-center">
+          <div className="absolute inset-0 flex items-center" aria-hidden>
             <span className="w-full border-t border-border" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
@@ -34,13 +33,19 @@ export default function LoginPage() {
 
         <OAuthButtons />
 
-        <div className="flex flex-col space-y-2 text-center text-sm text-gray-400">
-          <Link href="/forgot-password" className="hover:text-white transition-colors">
+        <div className="flex flex-col space-y-2 text-center text-sm text-muted-foreground">
+          <Link
+            href="/forgot-password"
+            className="hover:text-foreground transition-colors"
+          >
             Forgot your password?
           </Link>
           <p>
             Don&apos;t have an account?{' '}
-            <Link href="/signup" className="text-purple-400 hover:text-purple-300 transition-colors font-medium">
+            <Link
+              href="/signup"
+              className="text-primary hover:text-primary/80 transition-colors font-medium"
+            >
               Sign up
             </Link>
           </p>

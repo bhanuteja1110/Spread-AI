@@ -5,7 +5,14 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import { signInWithEmail } from '../actions';
 import { toast } from 'sonner';
 import { useState } from 'react';
@@ -42,6 +49,7 @@ export function LoginForm() {
           toast.error(res.error);
         }
       }
+      // On success, the server action redirects — nothing else to do here.
     } catch {
       toast.error('Failed to sign in. Please try again.');
     } finally {
@@ -52,17 +60,18 @@ export function LoginForm() {
   if (needsConfirmation) {
     return (
       <div className="flex flex-col items-center gap-4 py-4 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-purple-500/20">
-          <Mail className="h-7 w-7 text-purple-400" />
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/15">
+          <Mail className="h-7 w-7 text-primary" />
         </div>
-        <h2 className="text-lg font-semibold text-white">Check your email</h2>
-        <p className="text-sm text-gray-300 leading-relaxed">
+        <h2 className="text-lg font-semibold text-foreground">Check your email</h2>
+        <p className="text-sm text-muted-foreground leading-relaxed">
           Your email address hasn&apos;t been confirmed yet. Please click the verification link we sent to{' '}
-          <span className="text-purple-400 font-medium">{form.getValues('email')}</span>.
+          <span className="text-primary font-medium">{form.getValues('email')}</span>.
         </p>
         <Button
+          type="button"
           variant="outline"
-          className="mt-2 border-white/20 text-white hover:bg-white/10"
+          className="mt-2 border-border text-foreground hover:bg-accent"
           onClick={() => setNeedsConfirmation(false)}
         >
           Back to sign in
@@ -79,17 +88,17 @@ export function LoginForm() {
           name="email"
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-sm font-medium text-gray-200">Email</FormLabel>
+              <FormLabel className="text-sm font-medium text-foreground">Email</FormLabel>
               <FormControl>
                 <Input
                   placeholder="name@example.com"
                   type="email"
                   autoComplete="email"
-                  className="glass-input h-11 rounded-lg text-white"
+                  className="h-11"
                   {...field}
                 />
               </FormControl>
-              <FormMessage className="text-red-400" />
+              <FormMessage className="text-destructive" />
             </FormItem>
           )}
         />
@@ -98,24 +107,24 @@ export function LoginForm() {
           name="password"
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-sm font-medium text-gray-200">Password</FormLabel>
+              <FormLabel className="text-sm font-medium text-foreground">Password</FormLabel>
               <FormControl>
                 <Input
                   type="password"
                   placeholder="••••••••"
                   autoComplete="current-password"
-                  className="glass-input h-11 rounded-lg text-white"
+                  className="h-11"
                   {...field}
                 />
               </FormControl>
-              <FormMessage className="text-red-400" />
+              <FormMessage className="text-destructive" />
             </FormItem>
           )}
         />
         <Button
           type="submit"
-          className="w-full h-11 mt-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg shadow-lg shadow-purple-500/20 transition-all"
           disabled={isPending}
+          className="w-full h-11 mt-2 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold rounded-lg shadow-sm transition-colors"
         >
           {isPending ? (
             <>

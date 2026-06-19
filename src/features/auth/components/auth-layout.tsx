@@ -1,49 +1,61 @@
 import React from 'react';
-import Image from 'next/image';
+import Link from 'next/link';
 
+/**
+ * Theme-aware auth layout.
+ *
+ * Uses semantic Tailwind tokens (bg-background, bg-card, text-foreground,
+ * border-border, bg-primary) so it adapts to light + dark automatically.
+ * Hardcoded colors (bg-black, text-white, #080b12, etc.) are removed —
+ * all visuals come from CSS variables in globals.css.
+ *
+ * The ambient glow blobs use `--primary` with reduced opacity in light mode
+ * and higher opacity in dark mode (handled via /[0.08]/dark:bg-primary\/15).
+ */
 export function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative min-h-screen flex items-center justify-center overflow-hidden"
-      style={{ background: 'linear-gradient(135deg, #0a0e1a 0%, #0d1117 50%, #0a0e1a 100%)' }}
-    >
+    <div className="relative min-h-svh flex items-center justify-center overflow-hidden bg-background">
       {/* Ambient glow blobs */}
       <div
-        className="pointer-events-none absolute top-[-15%] left-[-10%] w-[50%] h-[50%] rounded-full animate-blob"
-        style={{ background: 'radial-gradient(circle, rgba(168,85,247,0.15) 0%, transparent 70%)', filter: 'blur(60px)' }}
+        aria-hidden
+        className="pointer-events-none absolute top-[-15%] left-[-10%] w-[60%] h-[60%] rounded-full animate-blob bg-primary/[0.08] dark:bg-primary/[0.15]"
+        style={{ filter: 'blur(60px)' }}
       />
       <div
-        className="pointer-events-none absolute bottom-[-15%] right-[-10%] w-[50%] h-[50%] rounded-full animate-blob animation-delay-2000"
-        style={{ background: 'radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 70%)', filter: 'blur(60px)' }}
+        aria-hidden
+        className="pointer-events-none absolute bottom-[-15%] right-[-10%] w-[60%] h-[60%] rounded-full animate-blob animation-delay-2000 bg-blue-500/[0.06] dark:bg-blue-500/[0.12]"
+        style={{ filter: 'blur(60px)' }}
       />
       <div
-        className="pointer-events-none absolute top-[30%] left-[60%] w-[30%] h-[30%] rounded-full animate-blob animation-delay-4000"
-        style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.1) 0%, transparent 70%)', filter: 'blur(60px)' }}
+        aria-hidden
+        className="pointer-events-none absolute top-[30%] left-[60%] w-[35%] h-[35%] rounded-full animate-blob animation-delay-4000 bg-purple-500/[0.05] dark:bg-purple-500/[0.10]"
+        style={{ filter: 'blur(60px)' }}
       />
 
       {/* Logo */}
-      <div className="absolute top-6 left-1/2 -translate-x-1/2">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-600 shadow-lg shadow-purple-500/30">
-            <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+      <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10">
+        <Link href="/login" className="flex items-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-md">
+          <span
+            aria-hidden
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground"
+          >
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2.5}
+            >
               <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
-          </div>
-          <span className="text-lg font-bold text-white tracking-tight">Spread AI</span>
-        </div>
+          </span>
+          <span className="text-lg font-bold text-foreground tracking-tight">Spread AI</span>
+        </Link>
       </div>
 
-      {/* Main glass card */}
-      <main className="relative z-10 w-full max-w-md px-4 sm:px-6 py-16">
-        <div
-          className="w-full rounded-2xl p-8 sm:p-10"
-          style={{
-            background: 'rgba(255, 255, 255, 0.04)',
-            backdropFilter: 'blur(24px)',
-            WebkitBackdropFilter: 'blur(24px)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06)',
-          }}
-        >
+      {/* Main card — uses semantic tokens so it works in light + dark */}
+      <main className="relative z-10 w-full max-w-md px-4 sm:px-6 py-20">
+        <div className="w-full rounded-2xl p-8 sm:p-10 bg-card/80 backdrop-blur-xl border border-border shadow-xl">
           {children}
         </div>
       </main>

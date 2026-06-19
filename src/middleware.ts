@@ -5,6 +5,16 @@ import { env } from '@/lib/env';
 import { NextResponse } from 'next/server';
 
 export async function middleware(request: NextRequest) {
+  const url = request.nextUrl.clone();
+  const pathname = url.pathname;
+
+  // Whitelist: OAuth callback must run unimpeded. The handler exchanges
+  // the code and writes cookies; if the middleware ran a guard here it
+  // could redirect the user away from the callback before cookies are set.
+  if (pathname.startsWith('/auth/callback')) {
+    return await updateSession(request);
+  }
+
   const supabase = createServerClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
@@ -18,16 +28,17 @@ export async function middleware(request: NextRequest) {
   );
 
   // Touching the user to reliably check session state
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const url = request.nextUrl.clone();
-  
-  const isAuthRoute = url.pathname.startsWith('/login') || 
-                      url.pathname.startsWith('/signup') || 
-                      url.pathname.startsWith('/forgot-password');
-                      
-  const isProtectedRoute = url.pathname.startsWith('/dashboard') || 
-                           url.pathname.startsWith('/settings');
+  const isAuthRoute =
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/signup') ||
+    pathname.startsWith('/forgot-password');
+
+  const isProtectedRoute =
+    pathname.startsWith('/dashboard') || pathname.startsWith('/settings');
 
   // Guard: Authenticated users should not see auth pages
   if (isAuthRoute && user) {
@@ -41,7 +52,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Apply default session update to seamlessly refresh tokens
+  // Default: refresh session cookies on every request
   return await updateSession(request);
 }
 
