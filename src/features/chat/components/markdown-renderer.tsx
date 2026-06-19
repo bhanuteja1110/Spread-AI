@@ -22,15 +22,15 @@ const markdownComponents: Components = {
         style={oneDark}
         language={match![1]}
         PreTag="div"
-        className="rounded-lg border border-white/10 my-4 text-sm !bg-[#0b101e]"
-        customStyle={{ background: '#0b101e', padding: '1rem', borderRadius: '0.5rem', margin: 0 }}
+        className="rounded-lg border border-border my-4 text-sm !bg-muted"
+        customStyle={{ background: 'transparent', padding: '1rem', borderRadius: '0.5rem', margin: 0 }}
         {...(props as any)}
       >
         {String(children).replace(/\n$/, '')}
       </SyntaxHighlighter>
     ) : (
       <code
-        className="bg-white/10 rounded px-1.5 py-0.5 text-sm font-mono text-purple-300"
+        className="bg-muted rounded px-1.5 py-0.5 text-sm font-mono text-primary"
         {...props}
       >
         {children}
@@ -40,8 +40,8 @@ const markdownComponents: Components = {
 
   table({ children }) {
     return (
-      <div className="overflow-x-auto my-4 rounded-lg border border-white/10">
-        <table className="min-w-full divide-y divide-white/10 bg-white/5">
+      <div className="overflow-x-auto my-4 rounded-lg border border-border">
+        <table className="min-w-full divide-y divide-border bg-card/50">
           {children}
         </table>
       </div>
@@ -50,7 +50,7 @@ const markdownComponents: Components = {
 
   th({ children }) {
     return (
-      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-200">
+      <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">
         {children}
       </th>
     );
@@ -58,7 +58,7 @@ const markdownComponents: Components = {
 
   td({ children }) {
     return (
-      <td className="px-4 py-3 border-t border-white/10 text-sm text-gray-300">
+      <td className="px-4 py-3 border-t border-border text-sm text-foreground/80">
         {children}
       </td>
     );
@@ -70,7 +70,7 @@ const markdownComponents: Components = {
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-blue-400 hover:text-blue-300 hover:underline transition-colors"
+        className="text-blue-500 hover:text-blue-600 dark:text-blue-300 dark:hover:text-blue-200 hover:underline transition-colors"
       >
         {children}
       </a>
@@ -79,7 +79,7 @@ const markdownComponents: Components = {
 
   blockquote({ children }) {
     return (
-      <blockquote className="border-l-4 border-purple-500/50 pl-4 italic text-gray-400 my-4">
+      <blockquote className="border-l-4 border-primary/50 pl-4 italic text-muted-foreground my-4">
         {children}
       </blockquote>
     );

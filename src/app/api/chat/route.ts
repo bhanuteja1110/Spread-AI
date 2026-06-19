@@ -1,6 +1,7 @@
 import { streamText, type Message, type CoreMessage } from 'ai';
 import { nvidiaClient, DEFAULT_NVIDIA_MODEL, DEFAULT_VISION_MODEL } from '@/lib/nvidia/client';
 import { manageContextWindow, type MessageContentPart } from '@/lib/nvidia/context-manager';
+import { memoryService } from '@/services/memory.service';
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
@@ -117,6 +118,37 @@ export async function POST(req: Request): Promise<Response> {
         .then(({ error }) => {
           if (error) console.error('Failed to update conversation timestamp:', error);
         });
+
+      // --- Memory: detect "remember this" directives and persist them ---
+      if (typeof latestMessage.content === 'string') {
+        const memoryDirective = memoryService.detectMemoryDirective(latestMessage.content);
+        if (memoryDirective) {
+          // Async — never blocks the response stream
+          memoryService
+            .add(memoryDirective, 'user-fact', latestMessage.content)
+            .then(() => {
+              /* memory saved */
+            })
+            .catch((err) => console.error('[memory] save failed:', err));
+        }
+      }
+    }
+
+    // --- Memory: retrieve user's long-term memories to ground the response ---
+    let memoryContext = '';
+    try {
+      const { data: memories } = await supabase.rpc('get_active_memories', {
+        p_user_id: user.id,
+      });
+      if (memories && memories.length > 0) {
+        memoryContext =
+          '\n\nUser-stored memories (use these to personalize responses):\n' +
+          memories
+            .map((m: { content: string }) => `- ${m.content}`)
+            .join('\n');
+      }
+    } catch (err) {
+      console.error('[memory] retrieval failed:', err);
     }
 
     // --- Multimodal Vision Detection & Server-Side Image Buffer Fetching ---
@@ -171,7 +203,7 @@ export async function POST(req: Request): Promise<Response> {
     const result = await streamText({
       model: nvidiaClient(selectedModel),
       messages: optimizedMessages,
-      system: SYSTEM_PROMPT,
+      system: SYSTEM_PROMPT + memoryContext,
       maxRetries: 2,
       temperature: 0.7,
       async onFinish({ text }) {

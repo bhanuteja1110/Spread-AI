@@ -53,70 +53,70 @@ export const MessageBubble = memo(
     <div
       className={cn(
         'group flex w-full gap-2.5 sm:gap-3 py-4 sm:py-5 px-3 sm:px-4 transition-colors rounded-lg',
-        isUser ? 'bg-transparent' : 'bg-white/[0.02] hover:bg-white/[0.04]',
+        isUser ? 'bg-transparent' : 'bg-muted/30 hover:bg-muted/50',
       )}
       role="article"
       aria-label={isUser ? 'Your message' : 'Spread AI response'}
     >
       <div className="flex-shrink-0 pt-0.5">
         {isUser ? (
-          <Avatar size="sm" className="h-7 w-7 sm:h-8 sm:w-8 border border-white/10">
+          <Avatar size="sm" className="h-7 w-7 sm:h-8 sm:w-8 border border-border">
             <AvatarImage src={userAvatarUrl} alt={userName || 'You'} />
-            <AvatarFallback className="bg-purple-600/20 text-purple-300 text-[10px] font-semibold">
+            <AvatarFallback className="bg-primary/15 text-primary text-[10px] font-semibold">
               {initials}
             </AvatarFallback>
           </Avatar>
         ) : (
           <div
             aria-hidden
-            className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-purple-600 flex items-center justify-center flex-shrink-0"
+            className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0"
           >
-            <span className="text-white text-[10px] font-bold tracking-tight">SA</span>
+            <span className="text-primary-foreground text-[10px] font-bold tracking-tight">SA</span>
           </div>
         )}
       </div>
 
       <div className="flex-1 space-y-1 min-w-0 overflow-hidden">
-          <div className="flex items-center justify-between gap-2">
-            <span className="font-semibold text-sm text-gray-200">
-              {isUser ? (userName || 'You') : 'Spread AI'}
-            </span>
-            <div className="flex items-center gap-1.5">
-              {message.createdAt && (
-                <time
-                  dateTime={message.createdAt.toISOString()}
-                  className="text-xs text-gray-600"
-                >
-                  {new Date(message.createdAt).toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </time>
-              )}
-              <button
-                onClick={handleCopy}
-                aria-label={copied ? 'Copied!' : 'Copy message'}
-                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-white/10 text-gray-500 hover:text-gray-300 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/30"
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-semibold text-sm text-foreground">
+            {isUser ? (userName || 'You') : 'Spread AI'}
+          </span>
+          <div className="flex items-center gap-1.5">
+            {message.createdAt && (
+              <time
+                dateTime={message.createdAt.toISOString()}
+                className="text-xs text-muted-foreground/70"
               >
-                {copied ? (
-                  <Check className="h-3.5 w-3.5 text-green-400" />
-                ) : (
-                  <Copy className="h-3.5 w-3.5" />
-                )}
-              </button>
-            </div>
-          </div>
-
-          <div className="text-gray-300 text-[15px] leading-relaxed">
-            {isUser ? (
-              <p className="whitespace-pre-wrap">{message.content as string}</p>
-            ) : (
-              <MarkdownRenderer content={message.content as string} />
+                {new Date(message.createdAt).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </time>
             )}
+            <button
+              onClick={handleCopy}
+              aria-label={copied ? 'Copied!' : 'Copy message'}
+              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40"
+            >
+              {copied ? (
+                <Check className="h-3.5 w-3.5 text-emerald-500" />
+              ) : (
+                <Copy className="h-3.5 w-3.5" />
+              )}
+            </button>
           </div>
         </div>
+
+        <div className="text-foreground/90 text-[15px] leading-relaxed">
+          {isUser ? (
+            <p className="whitespace-pre-wrap">{message.content as string}</p>
+          ) : (
+            <MarkdownRenderer content={message.content as string} />
+          )}
+        </div>
       </div>
-    );
+    </div>
+  );
   },
   // Deep equality comparator: only re-render the specific message being streamed
   (prev, next) =>

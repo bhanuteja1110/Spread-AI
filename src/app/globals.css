@@ -4,12 +4,126 @@
 
 /* ============================================================
    SPREAD AI — Design System
-   Dark-first glassmorphism theme. All colors are explicitly
-   defined here. The shadcn/tailwind.css import is intentionally
-   omitted — it overrides these variables with its own theme.
+   Tokens adapt automatically to light / dark via the `.dark`
+   class on <html> (managed by next-themes).
    ============================================================ */
 
 @layer base {
+  :root {
+    /* Light theme — calm, neutral, premium */
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 98%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 262 83% 58%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+
+    --accent: 220 14% 96%;
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 262 83% 58%;
+
+    --radius: 0.625rem;
+
+    --chart-1: 262 83% 58%;
+    --chart-2: 200 70% 50%;
+    --chart-3: 160 60% 45%;
+    --chart-4: 30 80% 55%;
+    --chart-5: 340 75% 55%;
+
+    --sidebar: 220 14% 98%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 262 83% 58%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 14% 94%;
+    --sidebar-accent-foreground: 222 47% 11%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 262 83% 58%;
+
+    /* Theme-aware semantic tokens used by Tailwind utility classes */
+    --surface-1: 0 0% 100%;
+    --surface-2: 220 14% 98%;
+    --surface-3: 220 14% 96%;
+    --border-soft: 220 13% 91%;
+    --text-primary: 222 47% 11%;
+    --text-secondary: 220 9% 36%;
+    --text-muted: 220 9% 46%;
+  }
+
+  .dark {
+    /* Dark theme — premium glassmorphism */
+    --background: 222 47% 5%;
+    --foreground: 210 40% 98%;
+
+    --card: 222 47% 8%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 47% 8%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 262 83% 65%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217 33% 20%;
+    --input: 217 33% 17%;
+    --ring: 262 83% 65%;
+
+    --chart-1: 262 83% 65%;
+    --chart-2: 200 70% 50%;
+    --chart-3: 160 60% 45%;
+    --chart-4: 30 80% 55%;
+    --chart-5: 340 75% 55%;
+
+    --sidebar: 222 47% 7%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 262 83% 65%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 217 33% 17%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217 33% 20%;
+    --sidebar-ring: 262 83% 65%;
+
+    --surface-1: 222 47% 5%;
+    --surface-2: 222 47% 7%;
+    --surface-3: 222 47% 9%;
+    --border-soft: 217 33% 17%;
+    --text-primary: 210 40% 98%;
+    --text-secondary: 215 20% 75%;
+    --text-muted: 215 20% 65%;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
   html,
   body {
     height: 100%;
@@ -18,154 +132,86 @@
   }
 
   body {
-    -webkit-tap-highlight-color: transparent;
-    text-rendering: optimizeLegibility;
-  }
-
-  :root {
-    /* Force dark mode variables at root — app is always dark */
-    --background: 222 47% 5%;
-    --foreground: 210 40% 98%;
-
-    --card: 222 47% 8%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222 47% 8%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 262 83% 65%;
-    --primary-foreground: 210 40% 98%;
-
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
-
-    --accent: 217 33% 17%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
-    --ring: 262 83% 65%;
-
-    --radius: 0.625rem;
-
-    /* Charts */
-    --chart-1: 262 83% 65%;
-    --chart-2: 200 70% 50%;
-    --chart-3: 160 60% 45%;
-    --chart-4: 30 80% 55%;
-    --chart-5: 340 75% 55%;
-
-    /* Sidebar */
-    --sidebar: 222 47% 7%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 262 83% 65%;
-    --sidebar-primary-foreground: 210 40% 98%;
-    --sidebar-accent: 217 33% 17%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 217 33% 17%;
-    --sidebar-ring: 262 83% 65%;
-  }
-
-  /* Dark class mirrors root — app is always in dark mode */
-  .dark {
-    --background: 222 47% 5%;
-    --foreground: 210 40% 98%;
-    --card: 222 47% 8%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222 47% 8%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 262 83% 65%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 217 33% 17%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217 33% 20%;
-    --input: 217 33% 17%;
-    --ring: 262 83% 65%;
-    --sidebar: 222 47% 7%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 262 83% 65%;
-    --sidebar-primary-foreground: 210 40% 98%;
-    --sidebar-accent: 217 33% 17%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 217 33% 17%;
-    --sidebar-ring: 262 83% 65%;
-  }
-
-  * {
-    border-color: hsl(var(--border));
-  }
-
-  body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
     font-family: var(--font-sans, system-ui, sans-serif);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.18s ease, color 0.18s ease;
+  }
+
+  body {
+    -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
   }
 
   html {
     font-family: var(--font-sans, system-ui, sans-serif);
   }
+
+  /* next-themes disables transitions on theme change — but for everything
+     else we want subtle, theme-aware color transitions. */
+  *,
+  *::before,
+  *::after {
+    transition-property: background-color, border-color, color, fill, stroke;
+    transition-duration: 150ms;
+    transition-timing-function: ease;
+  }
 }
 
 /* ============================================================
-   GLASSMORPHISM UTILITIES
+   SEMANTIC UTILITIES — theme-aware replacements for the hardcoded
+   `bg-white/5`, `text-gray-200`, `border-white/10` patterns.
+   Use these in new code so the same UI works in light + dark.
+   ============================================================ */
+
+@layer utilities {
+  .bg-surface-1 { background-color: hsl(var(--surface-1)); }
+  .bg-surface-2 { background-color: hsl(var(--surface-2)); }
+  .bg-surface-3 { background-color: hsl(var(--surface-3)); }
+
+  .text-theme-primary { color: hsl(var(--text-primary)); }
+  .text-theme-secondary { color: hsl(var(--text-secondary)); }
+  .text-theme-muted { color: hsl(var(--text-muted)); }
+
+  .border-theme-soft { border-color: hsl(var(--border-soft)); }
+}
+
+/* ============================================================
+   GLASSMORPHISM (dark-mode-aware)
    ============================================================ */
 
 .glass-panel {
-  background: rgba(255, 255, 255, 0.04);
+  background: hsl(var(--surface-2) / 0.6);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+  border: 1px solid hsl(var(--border-soft));
 }
 
-/* 
-  glass-input: Dark glass input with FULLY VISIBLE text and placeholders.
-  - text-white ensures typed text is visible
-  - placeholder color is set via ::placeholder with guaranteed contrast
-*/
 .glass-input {
-  background: rgba(255, 255, 255, 0.06) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  color: #ffffff !important;
+  background: hsl(var(--surface-2)) !important;
+  border: 1px solid hsl(var(--border-soft)) !important;
+  color: hsl(var(--text-primary)) !important;
   transition: all 0.2s ease;
 }
-
 .glass-input::placeholder {
-  color: rgba(255, 255, 255, 0.4) !important;
+  color: hsl(var(--text-muted)) !important;
 }
-
 .glass-input:focus,
 .glass-input:focus-visible {
-  background: rgba(255, 255, 255, 0.09) !important;
-  border-color: rgba(168, 85, 247, 0.5) !important;
-  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.2) !important;
+  border-color: hsl(var(--primary) / 0.5) !important;
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.2) !important;
   outline: none !important;
 }
 
 .glass-button {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: hsl(var(--surface-2));
+  border: 1px solid hsl(var(--border-soft));
   transition: all 0.2s ease;
 }
-
 .glass-button:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: hsl(var(--surface-3));
 }
 
 /* ============================================================
@@ -177,29 +223,15 @@
   33% { transform: translate(20px, -30px) scale(1.05); }
   66% { transform: translate(-15px, 15px) scale(0.95); }
 }
+.animate-blob { animation: blob 10s infinite ease-in-out; }
+.animation-delay-2000 { animation-delay: 2s; }
+.animation-delay-4000 { animation-delay: 4s; }
 
-.animate-blob {
-  animation: blob 10s infinite ease-in-out;
-}
-
-.animation-delay-2000 {
-  animation-delay: 2s;
-}
-
-.animation-delay-4000 {
-  animation-delay: 4s;
-}
-
-/* Typing indicator dots */
 @keyframes typing-dot {
   0%, 60%, 100% { opacity: 0.2; transform: translateY(0); }
   30% { opacity: 1; transform: translateY(-4px); }
 }
-
-.typing-dot {
-  animation: typing-dot 1.2s infinite ease-in-out;
-}
-
+.typing-dot { animation: typing-dot 1.2s infinite ease-in-out; }
 .typing-dot:nth-child(2) { animation-delay: 0.2s; }
 .typing-dot:nth-child(3) { animation-delay: 0.4s; }
 
@@ -209,19 +241,14 @@
 
 .scrollbar-thin {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+  scrollbar-color: hsl(var(--border-soft)) transparent;
 }
-.scrollbar-thin::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-.scrollbar-thin::-webkit-scrollbar-track {
-  background: transparent;
-}
+.scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: hsl(var(--border-soft));
   border-radius: 3px;
 }
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: hsl(var(--text-muted) / 0.5);
 }

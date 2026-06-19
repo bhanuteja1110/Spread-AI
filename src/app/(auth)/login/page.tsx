@@ -25,11 +25,10 @@ export default function LoginPage() {
 
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-white/10" />
+            <span className="w-full border-t border-border" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            {/* Removed the hardcoded background and mix-blend-screen. Using a semi-transparent glass background to cover the line behind it cleanly. */}
-            <span className="px-2 text-gray-400" style={{ background: '#12141c' }}>Or continue with</span>
+            <span className="px-2 text-muted-foreground bg-card">Or continue with</span>
           </div>
         </div>
 

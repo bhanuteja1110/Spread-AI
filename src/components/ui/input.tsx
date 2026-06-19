@@ -9,10 +9,10 @@ function Input({ className, type, ...props }: React.ComponentProps<"input">) {
       className={cn(
         // Base layout
         "h-10 w-full min-w-0 rounded-lg px-3 py-2 text-sm transition-all outline-none",
-        // Default appearance (dark theme)
-        "border border-white/10 bg-white/5 text-white",
-        // Placeholder — explicit white/50 so it's always readable on dark backgrounds
-        "placeholder:text-white/40",
+        // Default appearance (theme-aware)
+        "border border-border bg-card text-foreground",
+        // Placeholder — explicit muted so it's always readable
+        "placeholder:text-muted-foreground",
         // Focus ring
         "focus-visible:border-purple-500/60 focus-visible:ring-2 focus-visible:ring-purple-500/20",
         // File input

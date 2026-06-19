@@ -147,7 +147,7 @@ export function ChatInput({ isLoading, onSend }: ChatInputProps) {
     (text.trim().length > 0 || attachments.length > 0) && !isLoading && !isUploading;
 
   return (
-    <div className="p-3 sm:p-4 bg-background/95 backdrop-blur-md border-t border-white/10 w-full relative z-20">
+    <div className="p-3 sm:p-4 bg-background/95 backdrop-blur-md border-t border-border w-full relative z-20">
       <div className="max-w-4xl mx-auto flex flex-col gap-2">
         {attachments.length > 0 && (
           <div className="flex flex-wrap gap-2 px-1" role="list" aria-label="Attached files">
@@ -155,19 +155,19 @@ export function ChatInput({ isLoading, onSend }: ChatInputProps) {
               <div
                 key={att.id}
                 role="listitem"
-                className="flex items-center gap-1.5 bg-white/10 border border-white/15 rounded-full pl-2.5 pr-1 py-1 text-xs text-gray-200 max-w-full"
+                className="flex items-center gap-1.5 bg-muted border border-border rounded-full pl-2.5 pr-1 py-1 text-xs text-foreground max-w-full"
               >
                 {att.type.startsWith('image/') ? (
-                  <ImageIcon className="h-3 w-3 text-purple-300 flex-shrink-0" aria-hidden />
-                ) : (
-                  <FileText className="h-3 w-3 text-blue-300 flex-shrink-0" aria-hidden />
+              <ImageIcon className="h-3 w-3 text-primary flex-shrink-0" aria-hidden />
+            ) : (
+              <FileText className="h-3 w-3 text-blue-500 dark:text-blue-300 flex-shrink-0" aria-hidden />
                 )}
                 <span className="max-w-[120px] truncate">{att.name}</span>
                 <button
                   type="button"
                   onClick={() => removeAttachment(att.id)}
                   aria-label={`Remove ${att.name}`}
-                  className="p-1 hover:bg-white/20 rounded-full transition-colors text-gray-400 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 flex-shrink-0"
+                  className="p-1 hover:bg-accent rounded-full transition-colors text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 flex-shrink-0"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -176,7 +176,7 @@ export function ChatInput({ isLoading, onSend }: ChatInputProps) {
           </div>
         )}
 
-        <div className="relative flex items-end w-full rounded-xl bg-white/5 border border-white/10 focus-within:border-purple-500/40 focus-within:ring-2 focus-within:ring-purple-500/15 transition-all">
+        <div className="relative flex items-end w-full rounded-xl bg-card border border-border focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/15 transition-all">
           <input
             type="file"
             ref={fileInputRef}
@@ -195,10 +195,10 @@ export function ChatInput({ isLoading, onSend }: ChatInputProps) {
               disabled={isUploading}
               onClick={() => fileInputRef.current?.click()}
               aria-label={isUploading ? 'Uploading file...' : 'Attach file'}
-              className="h-8 w-8 sm:h-9 sm:w-9 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg"
+              className="h-8 w-8 sm:h-9 sm:w-9 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg"
             >
               {isUploading ? (
-                <Loader2 className="h-4 w-4 animate-spin text-purple-300" />
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
               ) : (
                 <Paperclip className="h-4 w-4" />
               )}
@@ -214,8 +214,8 @@ export function ChatInput({ isLoading, onSend }: ChatInputProps) {
             onKeyDown={onKeyDown}
             placeholder={isListening ? 'Listening...' : 'Message Spread AI…'}
             aria-label="Message input"
-            className={`flex-1 min-w-0 !h-auto !min-h-0 resize-none bg-transparent !border-0 !shadow-none !ring-0 text-sm px-1 py-3 placeholder:text-gray-500 focus-visible:!ring-0 ${
-              isListening ? 'text-purple-200' : 'text-white'
+            className={`flex-1 min-w-0 !h-auto !min-h-0 resize-none bg-transparent !border-0 !shadow-none !ring-0 text-sm px-1 py-3 placeholder:text-muted-foreground focus-visible:!ring-0 ${
+              isListening ? 'text-primary' : 'text-foreground'
             }`}
             style={{ height: '44px', maxHeight: `${MAX_HEIGHT}px` }}
             spellCheck={false}
@@ -233,7 +233,7 @@ export function ChatInput({ isLoading, onSend }: ChatInputProps) {
                 className={`h-8 w-8 sm:h-9 sm:w-9 rounded-lg transition-colors ${
                   isListening
                     ? 'bg-red-500/15 text-red-300 hover:bg-red-500/25 animate-pulse'
-                    : 'text-gray-400 hover:text-white hover:bg-white/10'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                 }`}
               >
                 {isListening ? (
@@ -250,7 +250,7 @@ export function ChatInput({ isLoading, onSend }: ChatInputProps) {
               onClick={submitMessage}
               disabled={!canSubmit}
               aria-label="Send message"
-              className="h-8 w-8 sm:h-9 sm:w-9 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+              className="h-8 w-8 sm:h-9 sm:w-9 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors"
             >
               {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

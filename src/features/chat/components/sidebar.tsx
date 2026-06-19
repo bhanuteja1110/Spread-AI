@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { memo } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -22,7 +22,7 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
-export function Sidebar({ onClose }: SidebarProps) {
+function SidebarImpl({ onClose }: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useParams();
@@ -96,10 +96,10 @@ export function Sidebar({ onClose }: SidebarProps) {
   return (
     <nav
       aria-label="Primary"
-      className="flex flex-col h-full w-full bg-[#080b12] border-r border-white/5"
+      className="flex flex-col h-full w-full bg-sidebar border-r border-sidebar-border"
     >
       {/* Top — Logo + New Chat */}
-      <div className="p-3 border-b border-white/5 flex flex-col gap-3">
+      <div className="p-3 border-b border-sidebar-border flex flex-col gap-3">
         <Link
           href="/dashboard/chat"
           onClick={onClose}
@@ -126,7 +126,7 @@ export function Sidebar({ onClose }: SidebarProps) {
 
       {/* Conversations list */}
       <div className="flex-1 min-h-0 px-2 py-2">
-        <p className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+        <p className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           Recent
         </p>
         <ScrollArea className="h-full">
@@ -135,7 +135,7 @@ export function Sidebar({ onClose }: SidebarProps) {
               {Array.from({ length: 4 }).map((_, i) => (
                 <div
                   key={i}
-                  className="h-9 rounded-md bg-white/5 animate-pulse"
+                  className="h-9 rounded-md bg-muted animate-pulse"
                   aria-hidden
                 />
               ))}
@@ -153,14 +153,14 @@ export function Sidebar({ onClose }: SidebarProps) {
                       className={cn(
                         'w-full flex items-center gap-2.5 text-left rounded-md px-2.5 h-9 text-sm transition-colors truncate',
                         isActive
-                          ? 'bg-white/10 text-white'
-                          : 'text-gray-400 hover:bg-white/5 hover:text-white',
+                          ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                          : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
                       )}
                     >
                       <MessageSquare
                         className={cn(
                           'h-4 w-4 flex-shrink-0',
-                          isActive ? 'text-purple-300' : 'text-gray-500',
+                          isActive ? 'text-primary' : 'text-muted-foreground/70',
                         )}
                         aria-hidden
                       />
@@ -174,17 +174,17 @@ export function Sidebar({ onClose }: SidebarProps) {
                             variant="ghost"
                             size="icon-sm"
                             aria-label="Conversation options"
-                            className="h-7 w-7 text-gray-400 hover:text-white hover:bg-white/10"
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
                           >
                             <MoreVertical className="h-4 w-4" aria-hidden />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent
                           align="end"
-                          className="w-32 bg-[#0b101e] border-white/10 text-gray-200"
+                          className="w-32 bg-popover border-border text-popover-foreground"
                         >
                           <DropdownMenuItem
-                            className="hover:bg-white/10 focus:bg-white/10 cursor-pointer"
+                            className="hover:bg-sidebar-accent focus:bg-sidebar-accent cursor-pointer"
                             onClick={(e) => handleRename(e, chat.id, chat.title)}
                           >
                             <Edit2 className="h-4 w-4" aria-hidden /> Rename
@@ -204,7 +204,7 @@ export function Sidebar({ onClose }: SidebarProps) {
               })}
             </ul>
           ) : (
-            <div className="px-3 py-6 text-center text-xs text-gray-500">
+            <div className="px-3 py-6 text-center text-xs text-muted-foreground">
               No conversations yet.
             </div>
           )}
@@ -212,7 +212,7 @@ export function Sidebar({ onClose }: SidebarProps) {
       </div>
 
       {/* Bottom — Settings + Logout */}
-      <div className="p-2 border-t border-white/5 space-y-0.5">
+      <div className="p-2 border-t border-sidebar-border space-y-0.5">
         <button
           type="button"
           onClick={handleSettings}
@@ -220,8 +220,8 @@ export function Sidebar({ onClose }: SidebarProps) {
           className={cn(
             'w-full flex items-center gap-2.5 px-2.5 h-9 rounded-md text-sm transition-colors',
             pathname?.startsWith('/settings')
-              ? 'bg-white/10 text-white'
-              : 'text-gray-400 hover:bg-white/5 hover:text-white',
+              ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+              : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
           )}
         >
           <SettingsIcon className="h-4 w-4 flex-shrink-0" aria-hidden />
@@ -232,7 +232,7 @@ export function Sidebar({ onClose }: SidebarProps) {
           <button
             type="submit"
             aria-label="Log out"
-            className="w-full flex items-center gap-2.5 px-2.5 h-9 rounded-md text-sm text-gray-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
+            className="w-full flex items-center gap-2.5 px-2.5 h-9 rounded-md text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
           >
             <LogOut className="h-4 w-4 flex-shrink-0" aria-hidden />
             <span>Log out</span>
@@ -242,3 +242,13 @@ export function Sidebar({ onClose }: SidebarProps) {
     </nav>
   );
 }
+
+/**
+ * Memoized Sidebar.
+ *
+ * `chat-layout.tsx` mounts the Sidebar twice (desktop aside + mobile drawer).
+ * Memoizing prevents both instances from re-rendering whenever the chat
+ * messages, typing state, or any unrelated parent state changes — only when
+ * `onClose` actually changes.
+ */
+export const Sidebar = memo(SidebarImpl, (prev, next) => prev.onClose === next.onClose);

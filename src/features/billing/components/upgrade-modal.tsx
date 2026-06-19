@@ -13,37 +13,37 @@ interface UpgradeModalProps {
 export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md bg-[#080b12] border-white/10 text-white shadow-2xl">
+      <DialogContent className="sm:max-w-md bg-card border-border text-card-foreground shadow-2xl">
         <DialogHeader>
-          <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.4)]">
-            <Zap className="h-7 w-7 text-purple-400" />
+          <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-primary/15">
+            <Zap className="h-7 w-7 text-primary" />
           </div>
           <DialogTitle className="text-center text-2xl font-bold tracking-tight">Upgrade to Pro</DialogTitle>
-          <DialogDescription className="text-center text-gray-400 text-sm mt-2">
+          <DialogDescription className="text-center text-muted-foreground text-sm mt-2">
             You&apos;ve reached your free daily limit of 50 messages. Upgrade to unlock unlimited access.
           </DialogDescription>
         </DialogHeader>
 
         <div className="my-6 space-y-4 px-4">
           <div className="flex items-center gap-3">
-            <CheckCircle2 className="h-5 w-5 text-purple-400" />
-            <span className="text-sm font-medium text-gray-200">Unlimited daily messages</span>
+            <CheckCircle2 className="h-5 w-5 text-primary" />
+            <span className="text-sm font-medium text-foreground">Unlimited daily messages</span>
           </div>
           <div className="flex items-center gap-3">
-            <CheckCircle2 className="h-5 w-5 text-purple-400" />
-            <span className="text-sm font-medium text-gray-200">Priority NVIDIA Vision processing</span>
+            <CheckCircle2 className="h-5 w-5 text-primary" />
+            <span className="text-sm font-medium text-foreground">Priority NVIDIA Vision processing</span>
           </div>
           <div className="flex items-center gap-3">
-            <CheckCircle2 className="h-5 w-5 text-purple-400" />
-            <span className="text-sm font-medium text-gray-200">100MB Deep Analysis Documents</span>
+            <CheckCircle2 className="h-5 w-5 text-primary" />
+            <span className="text-sm font-medium text-foreground">100MB Deep Analysis Documents</span>
           </div>
         </div>
 
         <DialogFooter className="sm:justify-stretch flex-col gap-2">
-          <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold transition-colors shadow-lg">
+          <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold transition-colors">
             Upgrade for $20/month
           </Button>
-          <Button variant="ghost" onClick={onClose} className="w-full text-gray-400 hover:text-white transition-colors">
+          <Button variant="ghost" onClick={onClose} className="w-full text-muted-foreground hover:text-foreground transition-colors">
             Maybe later
           </Button>
         </DialogFooter>

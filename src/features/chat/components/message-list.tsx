@@ -47,14 +47,14 @@ function EmptyState() {
         <div className="text-center space-y-2">
           <div
             aria-hidden
-            className="mx-auto h-12 w-12 sm:h-14 sm:w-14 rounded-xl bg-purple-600 flex items-center justify-center mb-4"
+            className="mx-auto h-12 w-12 sm:h-14 sm:w-14 rounded-xl bg-primary flex items-center justify-center mb-4"
           >
-            <span className="text-white font-bold text-base sm:text-lg tracking-tight">SA</span>
+            <span className="text-primary-foreground font-bold text-base sm:text-lg tracking-tight">SA</span>
           </div>
-          <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-white break-words">
+          <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground break-words">
             How can Spread AI help?
           </h2>
-          <p className="text-gray-500 text-sm max-w-md mx-auto">
+          <p className="text-muted-foreground text-sm max-w-md mx-auto">
             Choose a mode below or type your question to get started.
           </p>
         </div>
@@ -63,15 +63,15 @@ function EmptyState() {
           {SUGGESTED_PROMPTS.map(({ icon: Icon, iconColor, bg, title, description }) => (
             <div
               key={title}
-              className="p-4 rounded-xl bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.07] hover:border-white/15 transition-colors"
+              className="p-4 rounded-xl bg-card border border-border hover:bg-accent/50 hover:border-primary/30 transition-colors"
             >
               <div
                 className={`${bg} w-9 h-9 rounded-lg flex items-center justify-center mb-3`}
               >
                 <Icon className={`h-4 w-4 ${iconColor}`} aria-hidden />
               </div>
-              <h3 className="font-medium text-white mb-1 text-sm">{title}</h3>
-              <p className="text-xs text-gray-500 leading-relaxed">{description}</p>
+              <h3 className="font-medium text-foreground mb-1 text-sm">{title}</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">{description}</p>
             </div>
           ))}
         </div>
@@ -131,14 +131,14 @@ export function MessageList({
           >
             <div
               aria-hidden
-              className="h-8 w-8 rounded-full bg-purple-600 flex items-center justify-center flex-shrink-0"
+              className="h-8 w-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0"
             >
-              <Loader2 className="h-4 w-4 text-white animate-spin" />
+              <Loader2 className="h-4 w-4 text-primary-foreground animate-spin" />
             </div>
             <div className="flex gap-1 items-center" aria-hidden>
-              <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-bounce [animation-delay:-0.3s]" />
-              <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-bounce [animation-delay:-0.15s]" />
-              <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-bounce" />
+              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
+              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
+              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce" />
             </div>
           </div>
         )}
