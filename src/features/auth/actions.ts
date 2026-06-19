@@ -5,7 +5,18 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { env } from '@/lib/env'
 
+// Server-action timing. Server actions are batched and serialized by
+// Next.js, so logging here is cheap and a single point of truth.
+function tag(label: string, start: number, extra?: Record<string, unknown>) {
+  // eslint-disable-next-line no-console
+  console.log(`[auth-action] ${label}`, {
+    dur: `${(performance.now() - start).toFixed(1)}ms`,
+    ...extra,
+  });
+}
+
 export async function signInWithEmail(formData: FormData) {
+  const t0 = performance.now();
   const email = formData.get('email') as string
   const password = formData.get('password') as string
 
@@ -17,7 +28,7 @@ export async function signInWithEmail(formData: FormData) {
   const { error } = await supabase.auth.signInWithPassword({ email, password })
 
   if (error) {
-    // Provide user-friendly messages for known Supabase auth errors
+    tag('signInWithEmail.error', t0, { err: error.message });
     if (error.message.toLowerCase().includes('email not confirmed')) {
       return {
         error: 'Please confirm your email address before signing in. Check your inbox for a verification link.',
@@ -29,11 +40,13 @@ export async function signInWithEmail(formData: FormData) {
     return { error: error.message }
   }
 
+  tag('signInWithEmail.ok', t0);
   revalidatePath('/', 'layout')
   redirect('/dashboard')
 }
 
 export async function signUpWithEmail(formData: FormData) {
+  const t0 = performance.now();
   const email = formData.get('email') as string
   const password = formData.get('password') as string
   const fullName = formData.get('fullName') as string
@@ -48,21 +61,20 @@ export async function signUpWithEmail(formData: FormData) {
     password,
     options: {
       data: { full_name: fullName },
-      // emailRedirectTo tells Supabase where to redirect after email confirmation
       emailRedirectTo: `${env.NEXT_PUBLIC_APP_URL}/auth/callback`,
     },
   })
 
   if (error) {
+    tag('signUpWithEmail.error', t0, { err: error.message });
     if (error.message.toLowerCase().includes('already registered')) {
       return { error: 'An account with this email already exists. Try signing in instead.' }
     }
     return { error: error.message }
   }
 
-  // If email confirmation is required, data.user.confirmed_at will be null
-  // and data.session will be null — show verification message instead of redirecting
   if (data?.user && !data.session) {
+    tag('signUpWithEmail.needsConfirm', t0);
     return {
       success: true,
       requiresConfirmation: true,
@@ -70,7 +82,7 @@ export async function signUpWithEmail(formData: FormData) {
     }
   }
 
-  // Email confirmation is disabled in Supabase — session is immediately available
+  tag('signUpWithEmail.ok', t0);
   revalidatePath('/', 'layout')
   redirect('/dashboard')
 }

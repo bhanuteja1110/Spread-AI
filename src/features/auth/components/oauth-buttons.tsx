@@ -5,20 +5,24 @@ import { Button } from '@/components/ui/button';
 import { signInWithGoogle } from '../actions';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
+import { perfStart, perfEnd } from '@/lib/perf';
 
 export function OAuthButtons() {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
+    perfStart('auth.google');
     try {
       const res = await signInWithGoogle();
+      perfEnd('auth.google');
       if (res?.error) {
         toast.error(res.error);
         setIsLoading(false);
       }
       // On success the server action redirects — nothing else to do.
     } catch {
+      perfEnd('auth.google');
       toast.error('An unexpected error occurred');
       setIsLoading(false);
     }

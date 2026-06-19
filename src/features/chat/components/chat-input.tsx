@@ -307,7 +307,7 @@ export function ChatInput({
             aria-live="polite"
             className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground"
           >
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" aria-hidden />
+            <TypingDots size="sm" />
             <span className="truncate flex-1">Uploading {uploadProgress.name}…</span>
             <span className="tabular-nums">{Math.round(uploadProgress.pct)}%</span>
           </div>

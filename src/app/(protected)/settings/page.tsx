@@ -1,12 +1,14 @@
 'use client';
 
-import React, { useState, lazy, Suspense } from 'react';
+import React, { useState, lazy, Suspense, useCallback } from 'react';
 import { Sidebar } from '@/features/chat/components/sidebar';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Menu, User, BarChart3, Brain, Palette } from 'lucide-react';
 import { ThemeSwitcher } from '@/components/theme-switcher';
 import { cn } from '@/lib/utils';
+import { TypingDots } from '@/components/loading/typing-dots';
+import { SettingsPanelSkeleton } from '@/components/loading/skeletons';
 
 type SettingsTab = 'profile' | 'memory' | 'theme' | 'analytics';
 
@@ -48,11 +50,14 @@ const TABS: { id: SettingsTab; label: string; icon: React.ElementType; descripti
   },
 ];
 
-function TabFallback() {
+function TabFallback({ label }: { label: string }) {
   return (
-    <div className="space-y-3 animate-pulse" aria-label="Loading section">
-      <div className="h-32 rounded-xl border border-border bg-card" />
-      <div className="h-20 rounded-xl border border-border bg-card" />
+    <div className="space-y-3" aria-label={label} role="status">
+      <SettingsPanelSkeleton />
+      <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-1">
+        <TypingDots size="sm" />
+        <span>{label}…</span>
+      </div>
     </div>
   );
 }
@@ -62,6 +67,8 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
 
   const activeMeta = TABS.find((t) => t.id === activeTab)!;
+  const openSidebar = useCallback(() => setIsSidebarOpen(true), []);
+  const closeSidebar = useCallback(() => setIsSidebarOpen(false), []);
 
   return (
     <div className="flex h-svh w-full overflow-hidden bg-background">
@@ -75,7 +82,7 @@ export default function SettingsPage() {
           className="p-0 w-[280px] max-w-[85vw] border-r border-border bg-background"
         >
           <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
-          <Sidebar onClose={() => setIsSidebarOpen(false)} />
+          <Sidebar onClose={closeSidebar} />
         </SheetContent>
       </Sheet>
 
@@ -85,7 +92,7 @@ export default function SettingsPage() {
             variant="ghost"
             size="icon"
             className="md:hidden h-9 w-9 text-muted-foreground hover:text-foreground"
-            onClick={() => setIsSidebarOpen(true)}
+            onClick={openSidebar}
             aria-label="Open navigation"
           >
             <Menu className="h-5 w-5" />
@@ -117,7 +124,12 @@ export default function SettingsPage() {
                     role="tab"
                     aria-selected={isActive}
                     aria-controls={`tabpanel-${tab.id}`}
-                    onClick={() => setActiveTab(tab.id)}
+                    // No-op when clicking the already-active tab to avoid
+                    // tearing down the Suspense boundary and re-running
+                    // the lazy chunk fetch.
+                    onClick={() => {
+                      if (!isActive) setActiveTab(tab.id);
+                    }}
                     className={cn(
                       'flex items-center justify-center gap-2 px-3 sm:px-4 h-9 rounded-md text-sm font-medium transition-all whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
                       isActive
@@ -138,7 +150,10 @@ export default function SettingsPage() {
               aria-labelledby={`tab-${activeTab}`}
               className="animate-in fade-in slide-in-from-bottom-2 duration-300"
             >
-              <Suspense fallback={<TabFallback />}>
+              <Suspense
+                key={activeTab}
+                fallback={<TabFallback label={`Loading ${activeMeta.label}`} />}
+              >
                 {activeTab === 'profile' && <ProfileSettings />}
                 {activeTab === 'memory' && <MemoryManager />}
                 {activeTab === 'theme' && (

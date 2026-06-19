@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2, Upload, User as UserIcon } from 'lucide-react';
@@ -8,9 +8,12 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { updateProfileSettingsAction } from '../actions';
 import { createClient } from '@/lib/supabase/client';
+import { perfStart, perfEnd } from '@/lib/perf';
+import { TypingDots } from '@/components/loading/typing-dots';
 
 export function ProfileSettings() {
   const [isLoading, setIsLoading] = useState(false);
+  const [isUserLoading, setIsUserLoading] = useState(true);
   const [fullName, setFullName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -19,6 +22,7 @@ export function ProfileSettings() {
 
   useEffect(() => {
     let cancelled = false;
+    perfStart('profile.loadUser');
     async function loadUser() {
       const supabase = createClient();
       const {
@@ -28,6 +32,10 @@ export function ProfileSettings() {
         setFullName(user.user_metadata?.full_name || '');
         setAvatarUrl(user.user_metadata?.avatar_url || null);
       }
+      if (!cancelled) {
+        setIsUserLoading(false);
+        perfEnd('profile.loadUser');
+      }
     }
     loadUser();
     return () => {
@@ -35,7 +43,7 @@ export function ProfileSettings() {
     };
   }, []);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) {
@@ -49,7 +57,7 @@ export function ProfileSettings() {
     setSelectedFile(file);
     const objectUrl = URL.createObjectURL(file);
     setPreviewUrl(objectUrl);
-  };
+  }, []);
 
   const handleSave = async () => {
     if (!fullName.trim()) {
@@ -61,7 +69,9 @@ export function ProfileSettings() {
     formData.append('fullName', fullName);
     if (selectedFile) formData.append('avatar', selectedFile);
 
+    perfStart('profile.save');
     const result = await updateProfileSettingsAction(formData);
+    perfEnd('profile.save');
 
     if (result.error) {
       toast.error(result.error);
@@ -132,11 +142,14 @@ export function ProfileSettings() {
           <Button
             type="button"
             onClick={handleSave}
-            disabled={isLoading}
+            disabled={isLoading || isUserLoading}
             className="bg-primary text-primary-foreground hover:bg-primary/90 font-medium h-10 px-5"
           >
-            {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-            Save Changes
+            {isLoading ? (
+              <TypingDots size="sm" />
+            ) : (
+              <span>{isUserLoading ? 'Loading…' : 'Save Changes'}</span>
+            )}
           </Button>
         </div>
       </div>

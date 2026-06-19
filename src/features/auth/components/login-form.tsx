@@ -17,6 +17,8 @@ import { signInWithEmail } from '../actions';
 import { toast } from 'sonner';
 import { useState } from 'react';
 import { Loader2, Mail } from 'lucide-react';
+import { perfStart, perfEnd } from '@/lib/perf';
+import { TypingDots } from '@/components/loading/typing-dots';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -40,8 +42,10 @@ export function LoginForm() {
     formData.append('email', values.email);
     formData.append('password', values.password);
 
+    perfStart('auth.login');
     try {
       const res = await signInWithEmail(formData);
+      perfEnd('auth.login');
       if (res?.error) {
         if (res.error.toLowerCase().includes('confirm your email')) {
           setNeedsConfirmation(true);
@@ -51,6 +55,7 @@ export function LoginForm() {
       }
       // On success, the server action redirects — nothing else to do here.
     } catch {
+      perfEnd('auth.login');
       toast.error('Failed to sign in. Please try again.');
     } finally {
       setIsPending(false);
@@ -128,8 +133,8 @@ export function LoginForm() {
         >
           {isPending ? (
             <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Signing in…
+              <TypingDots size="sm" />
+              <span className="ml-2">Signing in…</span>
             </>
           ) : (
             'Sign In'

@@ -6,16 +6,14 @@ import { tavilySearch, formatSourcesForPrompt } from '@/lib/tavily/search';
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
-// ============================================================
-// DIAGNOSTIC LOGGING
-// Every stage of the chat pipeline logs a structured event so the
-// exact failure point can be identified from server logs (Vercel Logs
-// or `vercel logs <deployment>`).
-// ============================================================
 const TAG = '[chat-route]';
 function log(stage: string, extra?: Record<string, unknown>) {
   // eslint-disable-next-line no-console
   console.log(`${TAG} ${stage}`, extra ? JSON.stringify(extra) : '');
+}
+
+function elapsed(start: number) {
+  return `${(performance.now() - start).toFixed(1)}ms`;
 }
 
 // Node.js runtime — chosen over Edge for compatibility with @supabase/ssr
@@ -53,6 +51,7 @@ interface ChatRequestBody {
 
 export async function POST(req: Request): Promise<Response> {
   const requestId = crypto.randomUUID();
+  const t0 = performance.now();
   log('received', { requestId });
 
   try {
@@ -80,6 +79,7 @@ export async function POST(req: Request): Promise<Response> {
 
     // --- Auth ---
     const supabase = createClient();
+    const tAuth = performance.now();
     const {
       data: { user },
       error: authError,
@@ -89,51 +89,122 @@ export async function POST(req: Request): Promise<Response> {
       log('auth-failed', { requestId, error: authError?.message });
       return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
     }
-    log('auth-ok', { requestId, userId: user.id });
+    log('auth-ok', { requestId, userId: user.id, dur: elapsed(tAuth) });
 
     // --- Resolve or create the conversation ---
-    let resolvedConvId =
-      typeof conversationId === 'string' && conversationId.length > 0
-        ? conversationId
-        : null;
+    // PERFORMANCE: while we resolve/create the conversation we kick off the
+    // memory retrieval and Tavily search in parallel — these three are
+    // independent and can save 300-800ms of serial latency.
+    const latestMessage = messages[messages.length - 1];
+    const latestUserMessage = [...messages].reverse().find((m) => m.role === 'user');
+    const fallbackTitle =
+      typeof latestUserMessage?.content === 'string'
+        ? latestUserMessage.content.trim().slice(0, 50) || 'New chat'
+        : 'New chat';
 
-    if (resolvedConvId) {
-      const { data: conv, error: convError } = await supabase
-        .from('conversations')
-        .select('id')
-        .eq('id', resolvedConvId)
-        .eq('user_id', user.id)
-        .single();
+    const tConv = performance.now();
+    const convPromise = (async (): Promise<string | null> => {
+      let resolvedConvId =
+        typeof conversationId === 'string' && conversationId.length > 0
+          ? conversationId
+          : null;
 
-      if (convError || !conv) {
-        log('conv-not-found', { requestId, staleId: resolvedConvId });
-        resolvedConvId = null;
+      if (resolvedConvId) {
+        const { data: conv, error: convError } = await supabase
+          .from('conversations')
+          .select('id')
+          .eq('id', resolvedConvId)
+          .eq('user_id', user.id)
+          .single();
+
+        if (convError || !conv) {
+          log('conv-not-found', { requestId, staleId: resolvedConvId });
+          resolvedConvId = null;
+        }
       }
-    }
+
+      if (!resolvedConvId) {
+        const { data: newConv, error: createError } = await supabase
+          .from('conversations')
+          .insert({ user_id: user.id, title: fallbackTitle })
+          .select('id')
+          .single();
+
+        if (createError || !newConv) {
+          log('conv-create-failed', { requestId, error: createError?.message });
+          return null;
+        }
+        resolvedConvId = newConv.id;
+      }
+      return resolvedConvId;
+    })();
+
+    const memPromise = (async (): Promise<string> => {
+      const tMem = performance.now();
+      try {
+        const { data: memories } = await supabase.rpc('get_active_memories', {
+          p_user_id: user.id,
+        });
+        if (memories && memories.length > 0) {
+          log('memories-loaded', { requestId, count: memories.length, dur: elapsed(tMem) });
+          return (
+            '\n\nUser-stored memories (use these to personalize responses):\n' +
+            memories.map((m: { content: string }) => `- ${m.content}`).join('\n')
+          );
+        }
+      } catch (err) {
+        log('memory-load-failed', { requestId, error: String(err) });
+      }
+      return '';
+    })();
+
+    const webPromise = (async (): Promise<{ context: string; sources: { title: string; url: string; sourceIndex: number }[] }> => {
+      if (!webSearch) return { context: '', sources: [] };
+      const tWeb = performance.now();
+      log('tavily-started', { requestId });
+      const rawQuery =
+        typeof latestUserMessage?.content === 'string' ? latestUserMessage.content : '';
+      const query = rawQuery
+        .replace(IMAGE_URL_REGEX, '')
+        .replace(LEGACY_IMAGE_REGEX, '')
+        .replace(/<document[\s\S]*?<\/document>/g, '')
+        .replace(/\[Attached Image:[^\]]*\]/g, '')
+        .trim();
+
+      if (!query) {
+        log('tavily-skipped-empty-query', { requestId });
+        return { context: '', sources: [] };
+      }
+      try {
+        const result = await tavilySearch(query, { maxResults: 5 });
+        const context = formatSourcesForPrompt(result);
+        const sources = result.sources.map((s, i) => ({
+          title: s.title,
+          url: s.url,
+          sourceIndex: i + 1,
+        }));
+        log('tavily-finished', { requestId, sourceCount: sources.length, query, dur: elapsed(tWeb) });
+        return { context, sources };
+      } catch (err) {
+        log('tavily-failed', { requestId, error: String(err) });
+        return { context: '', sources: [] };
+      }
+    })();
+
+    const [resolvedConvId, memoryContext, webResult] = await Promise.all([
+      convPromise,
+      memPromise,
+      webPromise,
+    ]);
 
     if (!resolvedConvId) {
-      const latestUserMessage = [...messages].reverse().find((m) => m.role === 'user');
-      const fallbackTitle =
-        typeof latestUserMessage?.content === 'string'
-          ? latestUserMessage.content.trim().slice(0, 50) || 'New chat'
-          : 'New chat';
-
-      const { data: newConv, error: createError } = await supabase
-        .from('conversations')
-        .insert({ user_id: user.id, title: fallbackTitle })
-        .select('id')
-        .single();
-
-      if (createError || !newConv) {
-        log('conv-create-failed', { requestId, error: createError?.message });
-        return NextResponse.json(
-          { error: 'Failed to start conversation.', code: 'CONV_CREATE_FAILED' },
-          { status: 500 },
-        );
-      }
-      resolvedConvId = newConv.id;
+      return NextResponse.json(
+        { error: 'Failed to start conversation.', code: 'CONV_CREATE_FAILED' },
+        { status: 500 },
+      );
     }
-    log('conv-resolved', { requestId, convId: resolvedConvId });
+    const { context: webSearchContext, sources: webSources } = webResult;
+    log('conv-resolved', { requestId, convId: resolvedConvId, dur: elapsed(tConv) });
 
     // --- Atomic Quota Enforcement ---
     const { data: quotaCheck, error: rpcError } = await supabase.rpc('increment_user_usage', {
@@ -158,7 +229,6 @@ export async function POST(req: Request): Promise<Response> {
     }
 
     // --- Persist User Message (fire-and-forget) ---
-    const latestMessage = messages[messages.length - 1];
     if (latestMessage?.role === 'user') {
       const contentToSave =
         typeof latestMessage.content === 'string'
@@ -194,59 +264,6 @@ export async function POST(req: Request): Promise<Response> {
             .then(() => log('memory-saved', { requestId }))
             .catch((err) => log('memory-save-failed', { requestId, error: String(err) }));
         }
-      }
-    }
-
-    // --- Memory retrieval ---
-    let memoryContext = '';
-    try {
-      const { data: memories } = await supabase.rpc('get_active_memories', {
-        p_user_id: user.id,
-      });
-      if (memories && memories.length > 0) {
-        memoryContext =
-          '\n\nUser-stored memories (use these to personalize responses):\n' +
-          memories.map((m: { content: string }) => `- ${m.content}`).join('\n');
-        log('memories-loaded', { requestId, count: memories.length });
-      }
-    } catch (err) {
-      log('memory-load-failed', { requestId, error: String(err) });
-    }
-
-    // --- Tavily web search ---
-    let webSearchContext = '';
-    let webSources: { title: string; url: string; sourceIndex: number }[] = [];
-    if (webSearch) {
-      log('tavily-started', { requestId });
-      const latestUserMessage = [...messages].reverse().find((m) => m.role === 'user');
-      const rawQuery =
-        typeof latestUserMessage?.content === 'string' ? latestUserMessage.content : '';
-      const query = rawQuery
-        .replace(IMAGE_URL_REGEX, '')
-        .replace(LEGACY_IMAGE_REGEX, '')
-        .replace(/<document[\s\S]*?<\/document>/g, '')
-        .replace(/\[Attached Image:[^\]]*\]/g, '')
-        .trim();
-
-      if (query) {
-        try {
-          const result = await tavilySearch(query, { maxResults: 5 });
-          webSearchContext = formatSourcesForPrompt(result);
-          webSources = result.sources.map((s, i) => ({
-            title: s.title,
-            url: s.url,
-            sourceIndex: i + 1,
-          }));
-          log('tavily-finished', {
-            requestId,
-            sourceCount: webSources.length,
-            query,
-          });
-        } catch (err) {
-          log('tavily-failed', { requestId, error: String(err) });
-        }
-      } else {
-        log('tavily-skipped-empty-query', { requestId });
       }
     }
 
@@ -364,7 +381,8 @@ export async function POST(req: Request): Promise<Response> {
     const streamResponse = result.toDataStreamResponse();
     streamResponse.headers.set('x-conversation-id', resolvedConvId!);
     streamResponse.headers.set('x-request-id', requestId);
-    log('response-headers-set', { requestId, convId: resolvedConvId });
+    streamResponse.headers.set('x-server-timing', `total;dur=${(performance.now() - t0).toFixed(0)}`);
+    log('response-headers-set', { requestId, convId: resolvedConvId, totalDur: elapsed(t0) });
 
     return streamResponse;
   } catch (error: unknown) {
@@ -372,6 +390,7 @@ export async function POST(req: Request): Promise<Response> {
       requestId,
       error: error instanceof Error ? error.message : String(error),
       name: error instanceof Error ? error.name : 'unknown',
+      totalDur: elapsed(t0),
     });
     const message = error instanceof Error ? error.message : 'An internal server error occurred.';
 

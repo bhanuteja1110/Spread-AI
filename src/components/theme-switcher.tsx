@@ -42,7 +42,17 @@ export function ThemeSwitcher() {
   useEffect(() => setMounted(true), []);
 
   const handleSelect = useCallback(
-    (value: 'light' | 'dark' | 'system') => () => setTheme(value),
+    (value: 'light' | 'dark' | 'system') => () => {
+      // next-themes is synchronous — no async work — but log it so we can
+      // confirm there is no visible delay.
+      // eslint-disable-next-line no-console
+      console.time(`theme.switch:${value}`);
+      setTheme(value);
+      requestAnimationFrame(() => {
+        // eslint-disable-next-line no-console
+        console.timeEnd(`theme.switch:${value}`);
+      });
+    },
     [setTheme],
   );
 
