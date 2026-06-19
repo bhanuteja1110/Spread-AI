@@ -1,4 +1,5 @@
 import { ChatLayout } from '@/features/chat/components/chat-layout';
+import { ChatStateProvider } from '@/features/chat/context/chat-state-context';
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -7,5 +8,9 @@ export const metadata: Metadata = {
 };
 
 export default function ChatPage({ params }: { params: { id: string } }) {
-  return <ChatLayout conversationId={params.id} />;
+  return (
+    <ChatStateProvider>
+      <ChatLayout conversationId={params.id} />
+    </ChatStateProvider>
+  );
 }

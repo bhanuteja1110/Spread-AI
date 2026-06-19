@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useChatState } from '../context/chat-state-context';
 
 interface SidebarProps {
   onClose?: () => void;
@@ -40,6 +41,7 @@ function SidebarImpl({ onClose }: SidebarProps) {
   const pathname = usePathname();
   const params = useParams();
   const currentChatId = params?.id as string | undefined;
+  const { resetChat } = useChatState();
 
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -59,10 +61,20 @@ function SidebarImpl({ onClose }: SidebarProps) {
     setSelectedIds(new Set());
   }, []);
 
+  /**
+   * New Chat — does NOT navigate via Next.js (that would remount ChatLayout
+   * and wipe the in-flight stream + messages). Instead:
+   *   1) Calls the parent's resetChat() — stops stream, clears messages,
+   *      drops knownConvId
+   *   2) Silently rewrites the URL to /dashboard via history.replaceState
+   *
+   * The component instance is preserved, so users keep their typing state,
+   * scroll position, and any in-flight optimistics.
+   */
   const handleNewChat = useCallback(() => {
-    router.push('/dashboard/chat');
     onClose?.();
-  }, [router, onClose]);
+    resetChat();
+  }, [onClose, resetChat]);
 
   const handleSelectChat = useCallback(
     (id: string) => {
@@ -112,7 +124,8 @@ function SidebarImpl({ onClose }: SidebarProps) {
     try {
       await chatService.deleteConversations(ids);
       if (currentChatId && selectedIds.has(currentChatId)) {
-        router.push('/dashboard/chat');
+        // Reset local chat state instead of navigating — preserves component instance
+        resetChat();
       }
       toast.success(`Deleted ${ids.length} conversation${ids.length === 1 ? '' : 's'}`);
       exitSelectionMode();
@@ -122,7 +135,7 @@ function SidebarImpl({ onClose }: SidebarProps) {
     } finally {
       setDeletingIds(new Set());
     }
-  }, [selectedIds, conversations, currentChatId, router, exitSelectionMode]);
+  }, [selectedIds, conversations, currentChatId, resetChat, exitSelectionMode]);
 
   const handleClearAll = useCallback(async () => {
     if (!conversations?.length) {
@@ -142,7 +155,7 @@ function SidebarImpl({ onClose }: SidebarProps) {
     try {
       await chatService.deleteAllConversations();
       toast.success('All conversations deleted');
-      if (currentChatId) router.push('/dashboard/chat');
+      if (currentChatId) resetChat();
       exitSelectionMode();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to clear all.');
@@ -150,7 +163,7 @@ function SidebarImpl({ onClose }: SidebarProps) {
     } finally {
       setClearingAll(false);
     }
-  }, [conversations, currentChatId, router, exitSelectionMode]);
+  }, [conversations, currentChatId, resetChat, exitSelectionMode]);
 
   const handleRename = useCallback(
     async (e: React.MouseEvent, id: string, currentTitle: string) => {
@@ -188,7 +201,7 @@ function SidebarImpl({ onClose }: SidebarProps) {
       );
       try {
         await chatService.deleteConversation(id);
-        if (currentChatId === id) router.push('/dashboard/chat');
+        if (currentChatId === id) resetChat();
         toast.success('Conversation deleted');
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Failed to delete.');
@@ -201,7 +214,7 @@ function SidebarImpl({ onClose }: SidebarProps) {
         });
       }
     },
-    [conversations, currentChatId, router],
+    [conversations, currentChatId, resetChat],
   );
 
   const handleSettings = useCallback(() => {
@@ -217,7 +230,7 @@ function SidebarImpl({ onClose }: SidebarProps) {
       {/* Top — Logo + New Chat + selection controls */}
       <div className="p-3 border-b border-sidebar-border flex flex-col gap-2">
         <Link
-          href="/dashboard/chat"
+          href="/dashboard"
           onClick={onClose}
           className="flex items-center gap-2.5 px-2 py-1.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
         >
