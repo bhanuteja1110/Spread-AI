@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,7 @@ import { Plus, MessageSquare, Settings as SettingsIcon, LogOut, MoreVertical, Tr
 import { signOut } from '@/features/auth/actions';
 import { chatService, type Conversation } from '@/services/chat.service';
 import useSWR, { mutate } from 'swr';
-import { createClient } from '@/lib/supabase/client';
+import { useConversationsRealtime } from '@/hooks/use-conversations-realtime';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,24 +34,9 @@ export function Sidebar({ onClose }: SidebarProps) {
     { revalidateOnFocus: false },
   );
 
-  // Realtime sync for cross-device updates
-  useEffect(() => {
-    const supabase = createClient();
-    const channel = supabase
-      .channel('conversations_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'conversations' },
-        () => {
-          mutate('conversations');
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+  // Reference-counted global subscription — safe even when Sidebar mounts twice
+  // (desktop aside + mobile drawer). No duplicate channel subscriptions.
+  useConversationsRealtime();
 
   const handleNewChat = () => {
     router.push('/dashboard/chat');
