@@ -39,9 +39,6 @@ export async function POST(req: Request): Promise<Response> {
 
     const { messages, conversationId } = body;
 
-    if (!conversationId || typeof conversationId !== 'string') {
-      return NextResponse.json({ error: 'conversationId is required.' }, { status: 400 });
-    }
     if (!Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json({ error: 'messages array is required.' }, { status: 400 });
     }
@@ -57,16 +54,51 @@ export async function POST(req: Request): Promise<Response> {
       return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
     }
 
-    // --- Ownership validation: Ensure the conversation belongs to this user ---
-    const { data: conv, error: convError } = await supabase
-      .from('conversations')
-      .select('id')
-      .eq('id', conversationId)
-      .eq('user_id', user.id)
-      .single();
+    // --- Resolve or create the conversation ---
+    // Two cases:
+    //   (a) Client sent a real id → verify ownership
+    //   (b) Client sent nothing (first message of new chat, race condition)
+    //       → create the conversation server-side using the user's first message as title
+    let resolvedConvId = typeof conversationId === 'string' && conversationId.length > 0
+      ? conversationId
+      : null;
 
-    if (convError || !conv) {
-      return NextResponse.json({ error: 'Conversation not found or access denied.' }, { status: 403 });
+    if (resolvedConvId) {
+      const { data: conv, error: convError } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('id', resolvedConvId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (convError || !conv) {
+        // Stale or invalid id — fall through and create fresh
+        console.warn('[chat] conversation id invalid, recreating:', resolvedConvId);
+        resolvedConvId = null;
+      }
+    }
+
+    if (!resolvedConvId) {
+      const latestUserMessage = [...messages].reverse().find((m) => m.role === 'user');
+      const fallbackTitle =
+        typeof latestUserMessage?.content === 'string'
+          ? latestUserMessage.content.trim().slice(0, 50) || 'New chat'
+          : 'New chat';
+
+      const { data: newConv, error: createError } = await supabase
+        .from('conversations')
+        .insert({ user_id: user.id, title: fallbackTitle })
+        .select('id')
+        .single();
+
+      if (createError || !newConv) {
+        console.error('[chat] conversation create failed:', createError);
+        return NextResponse.json(
+          { error: 'Failed to start conversation.', code: 'CONV_CREATE_FAILED' },
+          { status: 500 },
+        );
+      }
+      resolvedConvId = newConv.id;
     }
 
     // --- Atomic Quota Enforcement ---
@@ -102,7 +134,7 @@ export async function POST(req: Request): Promise<Response> {
       supabase
         .from('messages')
         .insert({
-          conversation_id: conversationId,
+          conversation_id: resolvedConvId,
           user_id: user.id,
           role: 'user',
           content: contentToSave,
@@ -114,7 +146,7 @@ export async function POST(req: Request): Promise<Response> {
       supabase
         .from('conversations')
         .update({ updated_at: new Date().toISOString() })
-        .eq('id', conversationId)
+        .eq('id', resolvedConvId)
         .then(({ error }) => {
           if (error) console.error('Failed to update conversation timestamp:', error);
         });
@@ -209,7 +241,7 @@ export async function POST(req: Request): Promise<Response> {
       async onFinish({ text }) {
         if (!text) return;
         const { error } = await supabase.from('messages').insert({
-          conversation_id: conversationId,
+          conversation_id: resolvedConvId,
           user_id: user.id,
           role: 'assistant',
           content: text,
@@ -218,7 +250,11 @@ export async function POST(req: Request): Promise<Response> {
       },
     });
 
-    return result.toDataStreamResponse();
+    const streamResponse = result.toDataStreamResponse();
+    // Echo the resolved conversation id so the client can update its URL
+    // even if it started with no id (e.g. optimistic race on first message).
+    streamResponse.headers.set('x-conversation-id', resolvedConvId!);
+    return streamResponse;
   } catch (error: unknown) {
     console.error('Chat API error:', error);
     const message = error instanceof Error ? error.message : 'An internal server error occurred.';

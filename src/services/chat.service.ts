@@ -77,6 +77,23 @@ export const chatService = {
     if (error) throw new Error(`Failed to delete conversation: ${error.message}`);
   },
 
+  async deleteConversations(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const supabase = createClient();
+    const { error } = await supabase.from('conversations').delete().in('id', ids);
+    if (error) throw new Error(`Failed to delete conversations: ${error.message}`);
+  },
+
+  async deleteAllConversations(): Promise<void> {
+    const supabase = createClient();
+    // RLS ensures only this user's rows are deleted
+    const { error } = await supabase
+      .from('conversations')
+      .delete()
+      .neq('id', '00000000-0000-0000-0000-000000000000');
+    if (error) throw new Error(`Failed to delete all conversations: ${error.message}`);
+  },
+
   async getMessages(conversationId: string, page = 1, limit = 50): Promise<Message[]> {
     const supabase = createClient();
     const from = (page - 1) * limit;

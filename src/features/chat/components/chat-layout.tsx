@@ -19,8 +19,9 @@ export function ChatLayout({ conversationId }: { conversationId?: string }) {
   const [activeConvId, setActiveConvId] = useState<string | undefined>(conversationId);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [userMeta, setUserMeta] = useState<{ name?: string; avatarUrl?: string }>({});
+  // Prevent double-create if user spams the send button on a new chat
+  const creatingConvRef = useRef<Promise<string> | null>(null);
 
-  // Cache user-meta so the same fetch isn't repeated across re-renders
   const userMetaLoadedRef = useRef(false);
   useEffect(() => {
     if (userMetaLoadedRef.current) return;
@@ -37,7 +38,6 @@ export function ChatLayout({ conversationId }: { conversationId?: string }) {
       });
   }, []);
 
-  // Keep activeConvId in sync when navigating between conversations
   useEffect(() => {
     setActiveConvId(conversationId);
   }, [conversationId]);
@@ -51,11 +51,17 @@ export function ChatLayout({ conversationId }: { conversationId?: string }) {
     },
   );
 
-  const { messages, isLoading, setMessages, append } = useChat({
+  // We pass an empty body to useChat and override body per-append() call.
+  // This is the KEY fix for the first-message bug: previously `body:
+  // { conversationId: activeConvId }` was captured once at hook init and
+  // every append() reused that frozen value, so the first message was sent
+  // with `conversationId: undefined` and the API rejected it with 400.
+  const { messages, isLoading, setMessages, append, error, reload } = useChat({
     api: '/api/chat',
-    body: { conversationId: activeConvId },
-    onError: useCallback((error: Error) => {
-      if (error.message.includes('429') || error.message.includes('QUOTA_EXCEEDED')) {
+    id: activeConvId, // re-mounts the chat when conversation changes
+    onError: useCallback((err: Error) => {
+      console.error('[chat] error:', err);
+      if (err.message.includes('429') || err.message.includes('QUOTA_EXCEEDED')) {
         setShowUpgradeModal(true);
       } else {
         toast.error('Failed to get a response. Please try again.');
@@ -63,7 +69,7 @@ export function ChatLayout({ conversationId }: { conversationId?: string }) {
     }, []),
   });
 
-  // Sync DB messages into the AI SDK on first load
+  // Sync DB messages into the AI SDK when conversation changes
   const syncedConvRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (dbMessages && syncedConvRef.current !== activeConvId) {
@@ -73,44 +79,67 @@ export function ChatLayout({ conversationId }: { conversationId?: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dbMessages, activeConvId]);
 
+  /**
+   * Ensure a conversation exists and return its ID. Safe to call repeatedly;
+   * concurrent calls share the same in-flight promise.
+   */
+  const ensureConversation = useCallback(
+    async (title: string): Promise<string> => {
+      if (activeConvId) return activeConvId;
+      if (creatingConvRef.current) return creatingConvRef.current;
+
+      const promise = (async () => {
+        try {
+          const conv = await chatService.createConversation(title);
+          setActiveConvId(conv.id);
+          window.history.replaceState(null, '', `/dashboard/c/${conv.id}`);
+          return conv.id;
+        } finally {
+          creatingConvRef.current = null;
+        }
+      })();
+      creatingConvRef.current = promise;
+      return promise;
+    },
+    [activeConvId],
+  );
+
   const handleSend = useCallback(
     async (finalPrompt: string) => {
       if (!finalPrompt.trim() || isLoading) return;
 
-      if (!activeConvId) {
-        // Optimistic: create the conversation in the background while the
-        // user message streams immediately. This makes new-chat feel instant.
+      try {
+        // Always have a real conversation ID BEFORE we send. This eliminates
+        // the race where the first request hits the API with conversationId=undefined.
         const title = finalPrompt.trim().slice(0, 50);
-        try {
-          // Kick off conversation creation, but DON'T await before appending
-          const convPromise = chatService.createConversation(title);
-          append({ role: 'user', content: finalPrompt });
-          const conv = await convPromise;
-          setActiveConvId(conv.id);
-          window.history.replaceState(null, '', `/dashboard/c/${conv.id}`);
-        } catch {
-          toast.error('Failed to start a new conversation. Please try again.');
-        }
-      } else {
-        append({ role: 'user', content: finalPrompt });
+        const convId = await ensureConversation(title);
+
+        append(
+          { role: 'user', content: finalPrompt },
+          { body: { conversationId: convId } },
+        );
+      } catch (err) {
+        console.error('[chat] send failed:', err);
+        toast.error('Failed to start a new conversation. Please try again.');
       }
     },
-    [activeConvId, isLoading, append],
+    [isLoading, append, ensureConversation],
   );
 
-  // Memoize the close handler so it doesn't change every render (would
-  // invalidate memoized Sidebar).
+  const handleRetry = useCallback(() => {
+    if (!error || isLoading) return;
+    reload();
+  }, [error, isLoading, reload]);
+
   const closeSidebar = useCallback(() => setIsSidebarOpen(false), []);
   const openSidebar = useCallback(() => setIsSidebarOpen(true), []);
 
   return (
     <div className="flex h-svh w-full overflow-hidden bg-background">
-      {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-[260px] lg:w-[300px] flex-shrink-0">
         <Sidebar />
       </aside>
 
-      {/* Mobile Drawer */}
       <Sheet open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
         <SheetContent
           side="left"
@@ -121,7 +150,6 @@ export function ChatLayout({ conversationId }: { conversationId?: string }) {
         </SheetContent>
       </Sheet>
 
-      {/* Main Chat Area */}
       <div className="flex flex-col flex-1 min-w-0 relative">
         <header className="flex h-14 items-center gap-2 px-3 sm:px-4 border-b border-border bg-background/95 backdrop-blur-md z-10 flex-shrink-0">
           <Button
@@ -150,6 +178,8 @@ export function ChatLayout({ conversationId }: { conversationId?: string }) {
           <MessageList
             messages={messages}
             isLoading={isLoading}
+            error={error}
+            onRetry={handleRetry}
             userAvatarUrl={userMeta.avatarUrl}
             userName={userMeta.name}
           />

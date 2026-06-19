@@ -50,6 +50,8 @@ export const fileService = {
 
     switch (file.type) {
       case 'text/plain':
+      case 'text/markdown':
+      case 'text/x-markdown':
         return buffer.toString('utf-8');
 
       case 'application/pdf': {
@@ -66,9 +68,15 @@ export const fileService = {
         return result.value ?? '';
       }
 
-      default:
+      default: {
+        // Fallback: if filename has a recognized text extension, try as text.
+        const name = file.name.toLowerCase();
+        if (name.endsWith('.md') || name.endsWith('.markdown') || name.endsWith('.txt')) {
+          return buffer.toString('utf-8');
+        }
         // Images and unknown types: no text to extract
         return '';
+      }
     }
   },
 };
